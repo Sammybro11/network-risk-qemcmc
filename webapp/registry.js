@@ -1,4 +1,5 @@
 import { FinanceAdapter } from './adapters/finance.js';
+import { MaxCutAdapter } from './adapters/maxcut.js';
 
 export const Registry = {
   adapters: new Map(),
@@ -19,3 +20,4 @@ export const Registry = {
 
 // Register existing modules
 Registry.register(FinanceAdapter);
+Registry.register(MaxCutAdapter);

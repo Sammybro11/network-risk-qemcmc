@@ -38,7 +38,7 @@ export class FinanceAdapter {
   getVisualizations() {
     return [
       { id: 'network', type: 'network', title: '01. Interbank topology', hint: 'Core (inner), intermediate, periphery. Nodes flare red upon default spread.', data: { A: this.data.A, tiers: this.data.tiers } },
-      { id: 'convergence', type: 'timeseries', title: '02. Sampler race: energy convergence', hint: 'Mean chain energy vs exact Boltzmann value (dashed).' },
+      { id: 'convergence', type: 'timeseries', title: '02. Sampler race: energy convergence', hint: 'Mean chain energy vs Exact Boltzmann Mean Energy (dashed).' },
       { id: 'ranking', type: 'ranking', title: '03. Systemic-risk ranking fidelity', hint: 'Per-bank aggregate susceptibility μ vs exact ground truth.' },
       { id: 'intervention', type: 'custom-finance-intervention', title: '04. Bailout policy laboratory', hint: 'Select up to K banks to rescue. The exact Boltzmann distribution is re-enumerated under intervention to calculate true regret.' }
     ];
@@ -101,11 +101,11 @@ export class FinanceAdapter {
     if (this.isLive && this.liveResult) {
       const chiQ = susceptibility(src.quantum.states, this.params.beta);
       const chiM = susceptibility(src.metro.states, this.params.beta);
-      quantumStats = { mu: muOf(chiQ), relerr: chiRelErr(chiQ, this.data.exact.chi), rho: spearman(muOf(chiQ), exactMu), acc: src.quantum.accepted };
-      metroStats = { mu: muOf(chiM), relerr: chiRelErr(chiM, this.data.exact.chi), rho: spearman(muOf(chiM), exactMu), acc: src.metro.accepted };
+      quantumStats = { mu: muOf(chiQ), relerr: chiRelErr(chiQ, this.data.exact.chi), rho: spearman(muOf(chiQ), exactMu), acc: src.quantum.accepted, ess: src.quantum.ess || 0 };
+      metroStats = { mu: muOf(chiM), relerr: chiRelErr(chiM, this.data.exact.chi), rho: spearman(muOf(chiM), exactMu), acc: src.metro.accepted, ess: src.metro.ess || 0 };
     } else {
-      quantumStats = { mu: src.quantum.mu, relerr: src.quantum.chi_relerr, rho: src.quantum.mu_spearman, acc: src.quantum.acceptance };
-      metroStats = { mu: src.metro.mu, relerr: src.metro.chi_relerr, rho: src.metro.mu_spearman, acc: src.metro.acceptance };
+      quantumStats = { mu: src.quantum.mu, relerr: src.quantum.chi_relerr, rho: src.quantum.mu_spearman, acc: src.quantum.acceptance, ess: src.quantum.ess || 0 };
+      metroStats = { mu: src.metro.mu, relerr: src.metro.chi_relerr, rho: src.metro.mu_spearman, acc: src.metro.acceptance, ess: src.metro.ess || 0 };
     }
     
     return {
@@ -136,10 +136,12 @@ export class FinanceAdapter {
   }
 
   getSolution() {
+    const baselineSafety = (this.data.exact.mean_spin.reduce((a, b) => a + b, 0) / this.params.n).toFixed(3);
+    const optSafety = this.optimal[this.params.budget].m.toFixed(3);
     return {
       problem: 'Identify critical nodes and optimal bailout interventions to halt systemic contagion.',
-      result: `Forced cascade from the core seed bank reaches ${this.cascadeFailed.filter(Boolean).length}/${this.params.n} banks.`,
-      recommendedAction: 'Apply QeMCMC for susceptibility estimation to identify optimal intervention targets, outperforming Metropolis.',
+      result: `Forced cascade reaches ${this.cascadeFailed.filter(Boolean).length}/${this.params.n} banks. Baseline expected network solvency (magnetization) is ${baselineSafety}.`,
+      recommendedAction: `Apply QeMCMC for susceptibility estimation to identify optimal intervention targets. Under budget K=${this.params.budget}, optimal targets raise solvency to ${optSafety}.`,
       constraints: 'Interventions are evaluated by exactly re-enumerating the Boltzmann distribution under applied fields.',
       method: 'Trotterised quantum-enhanced statevector proposals (QeMCMC) vs standard single-spin Metropolis.'
     };
@@ -154,8 +156,10 @@ export class FinanceAdapter {
       ],
       attribution: 'This effort is supported by Qollab & IonQ. MIT licensed.',
       assumptions: [
-        'Network structure is synthetic EGJ model',
-        'QeMCMC runs as exact statevector simulation'
+        'Network structure is synthetic EGJ model.',
+        'QeMCMC runs as exact statevector simulation.',
+        'Spin Convention: +1 = Solvent/Operational, -1 = Default/Distressed.',
+        'Exact Energy is the exact Boltzmann thermal mean over all 2^n configurations.'
       ]
     };
   }

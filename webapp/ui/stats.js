@@ -112,3 +112,26 @@ export function cumulativeMean(xs) {
   for (let i = 0; i < xs.length; i++) { s += xs[i]; out[i] = s / (i + 1); }
   return out;
 }
+
+export function effectiveSampleSize(xs) {
+  const n = xs.length;
+  if (n < 2) return n;
+  let mean = 0;
+  for (let i = 0; i < n; i++) mean += xs[i];
+  mean /= n;
+  let var_x = 0;
+  for (let i = 0; i < n; i++) var_x += (xs[i] - mean) ** 2;
+  if (var_x === 0) return n;
+  var_x /= n;
+  
+  let tau = 1;
+  for (let k = 1; k < Math.min(n, 100); k++) {
+    let cov = 0;
+    for (let i = 0; i < n - k; i++) cov += (xs[i] - mean) * (xs[i + k] - mean);
+    cov /= (n - k);
+    let rho = cov / var_x;
+    if (rho < 0.05) break;
+    tau += 2 * rho;
+  }
+  return n / tau;
+}

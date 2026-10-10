@@ -301,8 +301,10 @@ class App {
     // Stats
     if ($('sampler-stats')) {
       $('sampler-stats').innerHTML = `
+        <div class="stat quantum">QeMCMC<b>${stats.quantum.ess ? stats.quantum.ess.toFixed(1) : '-'}</b>ESS</div>
         <div class="stat quantum">QeMCMC<b>${stats.quantum.rho.toFixed(3)}</b>rank fidelity</div>
         <div class="stat quantum">QeMCMC<b>${stats.quantum.relerr.toFixed(3)}</b>&chi; relative err</div>
+        <div class="stat metro">Metro<b>${stats.metro.ess ? stats.metro.ess.toFixed(1) : '-'}</b>ESS</div>
         <div class="stat metro">Metro<b>${stats.metro.rho.toFixed(3)}</b>rank fidelity</div>
         <div class="stat metro">Metro<b>${stats.metro.relerr.toFixed(3)}</b>&chi; relative err</div>
         <div class="stat">exact<b>${stats.exactEnergy.toFixed(2)}</b>&lang;E&rang; ground truth</div>

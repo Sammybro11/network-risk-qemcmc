@@ -4,7 +4,7 @@
 // needed on a static page): 1 shot per step, sampled from the true final
 // state probabilities.
 
-import { isingEnergy, metroStep, makeRng } from './stats.js';
+import { isingEnergy, metroStep, makeRng, effectiveSampleSize } from './stats.js';
 
 const GAMMA_RANGE = [0.25, 0.6];
 const TIME_RANGE = [2.0, 20.0];
@@ -166,6 +166,8 @@ function dropLast(st) {
 function normalized(out) {
   out.metro.accepted /= Math.max(1, out.metro.energies.length);
   out.quantum.accepted /= Math.max(1, out.quantum.energies.length);
+  out.metro.ess = effectiveSampleSize(out.metro.energies);
+  out.quantum.ess = effectiveSampleSize(out.quantum.energies);
   return out;
 }
 

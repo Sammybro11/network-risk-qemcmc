@@ -1,0 +1,77 @@
+<header class="hero">
+  <h1>Quantum-Enhanced MCMC for Financial Contagion</h1>
+  <p class="sub">
+    A tiered interbank network (EGJ cross-holdings) as an Ising model. Watch a
+    quantum proposal (QeMCMC, Trotterised on the simulator) race classical
+    Metropolis to learn the bailout-susceptibility landscape, then spend a
+    rescue budget where it actually closes the cascade.
+  </p>
+  <p id="status" class="status" role="status">Loading&hellip;</p>
+  <div class="controls">
+    <button id="btn-replay" type="button" disabled>Replay recorded run</button>
+    <button id="btn-live" type="button" disabled>Run live on simulator</button>
+    <label class="live-steps">
+      Live chain steps
+      <input id="live-steps" type="number" min="50" max="2000" step="50" value="400" />
+    </label>
+  </div>
+</header>
+
+<main>
+  <section class="panel network-panel" aria-labelledby="net-title">
+    <h2 id="net-title">Interbank network</h2>
+    <p class="hint">Core (gold), intermediate (blue), periphery (grey). Nodes flare red on default. Click a bank to select it for bailout.</p>
+    <div id="network" class="network" aria-hidden="true"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="race-title">
+    <h2 id="race-title">Sampler race: energy convergence</h2>
+    <p class="hint">Mean chain energy vs exact Boltzmann value (dashed). Quantum proposals tunnel; Metropolis freezes.</p>
+    <canvas id="chart-trace" height="180" aria-label="Energy trace chart"></canvas>
+    <canvas id="chart-conv" height="180" aria-label="Convergence chart"></canvas>
+    <div id="sampler-stats" class="stat-grid"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="rank-title">
+    <h2 id="rank-title">Systemic-risk ranking fidelity</h2>
+    <p class="hint">Per-bank aggregate susceptibility &mu; vs exact ground truth, plus the non-dynamical baselines.</p>
+    <canvas id="chart-ranking" height="220" aria-label="Susceptibility ranking chart"></canvas>
+    <canvas id="chart-regret" height="200" aria-label="Bailout regret chart"></canvas>
+  </section>
+
+  <section class="panel" aria-labelledby="bailout-title">
+    <h2 id="bailout-title">Bailout policy lab</h2>
+    <p class="hint">
+      Pick up to K banks to rescue (field &Omega; = 2.0). The app re-enumerates
+      the exact Boltzmann distribution under your intervention and scores the
+      regret against the true optimum.
+    </p>
+    <div class="bailout-controls">
+      <label>Budget K
+        <select id="bailout-k">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+        </select>
+      </label>
+      <button id="bailout-clear" type="button">Clear</button>
+      <span>Presets:</span>
+      <button class="preset" data-strategy="quantum-chi" type="button">Quantum &chi;</button>
+      <button class="preset" data-strategy="metro-chi" type="button">Metropolis &chi;</button>
+      <button class="preset" data-strategy="strength" type="button">Strength</button>
+      <button class="preset" data-strategy="eigenvector" type="button">Eigenvector</button>
+      <button class="preset" data-strategy="debtrank" type="button">DebtRank</button>
+    </div>
+    <div id="bank-picker" class="bank-picker" role="group" aria-label="Banks"></div>
+    <p id="bailout-result" class="bailout-result" role="status"></p>
+  </section>
+</main>
+
+<footer>
+  <p>
+    Ising conventions and QeMCMC proposal after Layden et al. (Nature 619, 282,
+    2023); contagion model after Tomar et al. (arXiv:2609.17415); DebtRank
+    baseline after Battiston et al. (arXiv:1504.01857). MIT licensed.
+  </p>
+  <p>This effort is supported by Qollab &amp; IonQ.</p>
+</footer>

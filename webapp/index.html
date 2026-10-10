@@ -3,88 +3,66 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>QeMCMC for Financial Contagion</title>
-  <meta name="description" content="Quantum-enhanced MCMC racing classical Metropolis on a tiered interbank contagion network, with a bailout policy lab scored by exact enumeration." />
+  <title>Scientific Problem-Solving Platform</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="main.css" />
-  <script type="module" src="main.js"></script>
+  <script type="module" src="app.js"></script>
 </head>
 <body>
-<header class="hero">
-  <h1>Quantum-Enhanced MCMC for Financial Contagion</h1>
-  <p class="sub">
-    A tiered interbank network (EGJ cross-holdings) as an Ising model. Watch a
-    quantum proposal (QeMCMC, Trotterised and sampled in your browser) race
-    classical Metropolis to learn the bailout-susceptibility landscape, then
-    spend a rescue budget where it actually closes the cascade.
-  </p>
-  <p id="status" class="status" role="status">Loading&hellip;</p>
-  <div class="controls">
-    <button id="btn-replay" type="button" disabled>Replay recorded run</button>
-    <button id="btn-live" type="button" disabled>Run live in your browser</button>
-    <label class="live-steps">
-      Live chain steps
-      <input id="live-steps" type="number" min="50" max="2000" step="50" value="400" />
-    </label>
-  </div>
-</header>
-
-<main>
-  <section class="panel network-panel" aria-labelledby="net-title">
-    <h2 id="net-title">Interbank network</h2>
-    <p class="hint">Core (gold ring), intermediate (blue ring), periphery (outer grey ring). Nodes flare red on default. Click a bank to select it for bailout.</p>
-    <canvas id="network" class="network" aria-label="Interbank network diagram"></canvas>
-  </section>
-
-  <section class="panel" aria-labelledby="race-title">
-    <h2 id="race-title">Sampler race: energy convergence</h2>
-    <p class="hint">Mean chain energy vs exact Boltzmann value (dashed). Quantum proposals tunnel; Metropolis freezes.</p>
-    <canvas id="chart-trace" height="180" aria-label="Energy trace chart"></canvas>
-    <canvas id="chart-conv" height="180" aria-label="Convergence chart"></canvas>
-    <div id="sampler-stats" class="stat-grid"></div>
-  </section>
-
-  <section class="panel" aria-labelledby="rank-title">
-    <h2 id="rank-title">Systemic-risk ranking fidelity</h2>
-    <p class="hint">Per-bank aggregate susceptibility &mu; vs exact ground truth, plus the non-dynamical baselines.</p>
-    <canvas id="chart-ranking" height="220" aria-label="Susceptibility ranking chart"></canvas>
-    <canvas id="chart-regret" height="200" aria-label="Bailout regret chart"></canvas>
-  </section>
-
-  <section class="panel" aria-labelledby="bailout-title">
-    <h2 id="bailout-title">Bailout policy lab</h2>
-    <p class="hint">
-      Pick up to K banks to rescue (field &Omega; = 2.0). The app re-enumerates
-      the exact Boltzmann distribution under your intervention and scores the
-      regret against the true optimum.
-    </p>
-    <div class="bailout-controls">
-      <label>Budget K
-        <select id="bailout-k">
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3" selected>3</option>
-        </select>
-      </label>
-      <button id="bailout-clear" type="button">Clear</button>
-      <span>Presets:</span>
-      <button class="preset" data-strategy="quantum-chi" type="button">Quantum &chi;</button>
-      <button class="preset" data-strategy="metro-chi" type="button">Metropolis &chi;</button>
-      <button class="preset" data-strategy="strength" type="button">Strength</button>
-      <button class="preset" data-strategy="eigenvector" type="button">Eigenvector</button>
-      <button class="preset" data-strategy="debtrank" type="button">DebtRank</button>
+  <!-- Global App Header -->
+  <header class="app-header">
+    <div class="container header-container">
+      <div class="brand">Scientific Problem-Solving Platform</div>
+      <div class="problem-selector">
+        <label for="module-select">Module:</label>
+        <select id="module-select"></select>
+      </div>
     </div>
-    <div id="bank-picker" class="bank-picker" role="group" aria-label="Banks"></div>
-    <p id="bailout-result" class="bailout-result" role="status"></p>
-  </section>
-</main>
+  </header>
 
-<footer>
-  <p>
-    Ising conventions and QeMCMC proposal after Layden et al. (Nature 619, 282,
-    2023); contagion model after Tomar et al. (arXiv:2609.17415); DebtRank
-    baseline after Battiston et al. (arXiv:1504.01857). MIT licensed.
-  </p>
-  <p>This effort is supported by Qollab &amp; IonQ.</p>
-</footer>
+  <!-- Section 01 — Editorial opening (Dynamic) -->
+  <section class="editorial">
+    <div class="container">
+      <h1 id="module-name"></h1>
+      <p id="module-description" class="subtitle"></p>
+      
+      <div id="module-intro-container" class="intro-text"></div>
+
+      <div class="run-controls" id="module-controls">
+        <div class="run-status">
+          <span class="status-label">Status:</span>
+          <span id="status" role="status">Loading module...</span>
+        </div>
+        <div class="actions" id="module-actions">
+          <!-- Dynamic buttons and inputs -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Scientific Canvas -->
+  <div class="scientific-canvas">
+    <!-- Dynamic visualizations go here -->
+    <main class="container main-grid" id="module-workspace"></main>
+    
+    <!-- Solution / Decision presentation -->
+    <section class="container panel solution-panel" id="module-solution" style="display: none; margin-bottom: 2rem;">
+      <header class="panel-header">
+        <h2>Computed Solution & Recommendations</h2>
+      </header>
+      <div class="solution-content" id="solution-content"></div>
+    </section>
+
+    <!-- Methodology -->
+    <footer class="methodology container" id="module-methodology">
+      <h2>Methodology & References</h2>
+      <div id="methodology-content"></div>
+    </footer>
+  </div>
+
 </body>
 </html>

@@ -153,6 +153,7 @@ activemq-data/
 .env
 .envrc
 .venv
+.agents
 env/
 venv/
 ENV/
@@ -218,3 +219,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated Reports
+financial_contagion_report.md

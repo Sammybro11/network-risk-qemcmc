@@ -8,7 +8,7 @@ Ferguson & Wallden (arXiv:2405.04247).
 ## Project setup
 
 - uv-managed Python package, `src/` layout, Python **3.14** (`.python-version`, `requires-python = ">=3.14"`).
-- Deps: numpy, qiskit + qiskit-aer (quantum simulation), arviz + internal `arviz_stats` (diagnostics), tqdm.
+- Deps: numpy, qiskit + qiskit-aer (quantum simulation), matplotlib (report plots), tqdm. Diagnostics are pure numpy (Geyer ESS); arviz/arviz_stats were removed (compiled, no wasm wheels — they blocked the Pyodide/qollab browser path).
 
 ### Commands
 
@@ -16,7 +16,7 @@ Ferguson & Wallden (arXiv:2405.04247).
 uv sync                          # install deps into .venv
 uv run python ...                # run anything inside the project env
 uv run risk-qemcmc               # CLI entry point; currently a stub printing hello (risk_qemcmc/__init__.py:main)
-uv run pytest                    # no tests exist yet
+uv run pytest                    # tests/ — diagnostics (ESS/autocorr/susceptibility), enumeration barrier
 ```
 
 There is no lint/typecheck config, no Makefile, no CI.
@@ -31,9 +31,9 @@ Four subpackages under `src/risk_qemcmc/`, wired as a linear pipeline:
 2. **`algorithms/`** — sampling
    - `mcmc.py`: `MCMC` driver. `step()` energy change is computed with full `ising_energy` recomputation (not incremental), fine at small n but a scaling consideration.
    - `proposals.py`: classical proposals — callables with signature `(state: np.ndarray, rng: np.random.Generator) -> np.ndarray`. `MCMC.__init__(propose=...)` swaps proposals freely; this duck-typed interface is how the quantum proposal plugs in.
-   - `qe_proposal.py`: `QeProposal` is the quantum proposal, same `(z, rng) -> z'` callable. Per step it draws gamma and t (uniformly over ranges if tuples), builds a Trotter circuit anchored at the current state, takes **1 shot** from Aer.
+   - `qe_proposal.py`: `QeProposal` is the quantum proposal, same `(z, rng) -> z'` callable. Per step it draws gamma and t (uniformly over ranges if tuples), builds a Trotter circuit anchored at the current state, takes **1 shot** from Aer. Accepts `simulator=` to inject any backend with the `run(circuit, shots).result().get_counts()` interface — on qollab this is the runtime-injected `backend` global; when omitted it lazily constructs `AerSimulator(max_parallel_threads=1)` (lazy so the qollab Pyodide env, which has no qiskit-aer wheel, never imports it).
 3. **`compile/`** — circuit construction (`trotter.py`): builds `Qiskit` circuits for H = (1−γ)·α·H_prob + γ·ΣX, with Frobenius-norm α = ||H_mix||_F/||H_prob||_F so γ is problem-size invariant. `measure=False` returns an unmeasured circuit so a Statevector/density-matrix sim can read the full distribution.
-4. **`analysis/`** — `Diagnostics` wraps an `MCMCResult`: ESS, autocorrelation, energy bias/stderr vs. exact reference, post-selection rate, ESS per shot (the quantum-vs-classical cost metric). `rhat()` for multi-chain. Uses arviz plus a private-arviz-stats import (`arviz_stats.base.array.array_stats`) for autocorr.
+4. **`analysis/`** — `Diagnostics` wraps an `MCMCResult`: ESS (Geyer initial positive sequence on the FFT autocorrelation), autocorrelation, energy bias/stderr vs. exact reference, post-selection rate, ESS per shot (the quantum-vs-classical cost metric). Pure numpy — arviz was removed (note: ESS values are plain Geyer, no rank-normalization, so they shift slightly vs. old arviz numbers). The old `rhat()` had no callers and was dropped.
 
 Result plumbing: all sampling returns `MCMCResult` (states/energies/accepted arrays; shot-count fields `total_shots`, `kept_shots`, `keep_rate`, `discards` are only populated for quantum/proposal-with-shots runs — `total_shots_or_steps` and `post_selection_rate` handle both cases). Diagnostics consume `MCMCResult` polymorphically.
 
@@ -117,6 +117,31 @@ the target distribution would shift under the sampler and χ would be garbage.
   Metropolis, the Trotter circuit, χ/μ, and regret charts; webapp JSON is loaded by `main.js`
   with `drawRanking`/`drawRegret` consuming exactly the table rows above.
 
+### Traffic congestion layer (`problems/traffic.py`, arXiv:2605.03879 framing)
+
+Same (J, h) convention, same samplers, different economy: road segments on an L×L grid
+(+ optional perimeter ring road). `z = +1` free-flowing, `−1` congested; the load field
+`h_i = vuln·demand_i/capacity_i` is capacity-normalised (VOC-like), so **widening a segment
+is literally a field edit** (`apply_widening` ≡ `apply_bailout`) and χ = β·Cov(z) is the
+bang-per-widening ranking by the same fluctuation–dissipation identity. Flow coupling
+`J = −(λ/4)(F + Fᵀ)` from per-neighbour demand shares `F_ij` (spillback: congestion agrees
+along shared load). The influence matrix returned as `A` is `Fᵀ` (congestion at j propagates
+upstream to i), which feeds the reused finance baselines (`strength_scores` = load centrality,
+`eigenvector_scores`, `debtrank_scores`, `cascade_closure`).
+
+- `experiments/traffic_congestion.py`: lab CLI mirroring `financial_contagion.py`
+  (`--L`, `--lam`, `--vuln`, `--omega`, `--theta`, `--no-ring`); prints the same χ metrics
+  and widening table incl. sequential rows. No export/webapp wiring yet.
+- Validated regime: **λ = 2.0, vuln = 0.05, β = 2.5, ω = 0.5** (the CLI defaults). At λ = 6
+  the network is so strongly coupled that m(S) depends only on the total field — every
+  ranking ties, no demo. Near the tipping point placement matters and the quantum arm
+  recovers the exact sequential dose order while Metropolis (frozen, acceptance ~0.07)
+  misranks dose 1.
+- `--vuln 0` gives the perfectly symmetric double well (exact m = 0): any dose breaks the
+  tie and saturates m ≈ +1, so regret ties everywhere. Keep the small tilt on for the demo.
+- The `ring`/`--no-ring` knob is a **no-op at L = 3** (the perimeter cycle coincides with
+  the grid streets); it only adds new edges for L ≥ 4, which exceeds exact enumeration.
+
 ## Conventions and gotchas
 
 - **Spin↔bit convention (easy to break):** spins are ±1, qubits are 0/1, mapped by `bit = (1 − z)//2` and `z = 1 − 2·bit`. `trotter_circuit` maps `z_i = +1 → |0⟩`, `−1 → |1⟩`. Aer's measured bitstring must be reversed (`[::-1]`) before converting to bits — see `QeProposal._propose_bits` (qiskit little-endian vs. spin-index order).
@@ -125,10 +150,34 @@ the target distribution would shift under the sampler and χ would be garbage.
 - **Shots budget:** quantum burn-in and thinning steps still consume simulator shots; `MCMCResult` shot-count fields exist for proposals that track them, but no current proposal does — `total_shots_or_steps` then falls back to chain steps.
 - **Aer perf:** `AerSimulator(max_parallel_threads=1)` is deliberate — shots=1 makes OpenMP parallelism pure overhead, and parallel worker processes would otherwise thrash. Don't "fix" it.
 - **Trotter dt guard:** pass **either** fixed `r` **or** fixed `delta_t` (not both; `ValueError`); dt outside [0.1, 2.0] triggers a `warnings.warn` (not an error). Default `delta_t = 0.8`.
-- **Exact reference values** (`exact_moments`, `exact_cascade`) enforce `n ≤ 16` (or `< 16`) with `assert` — enumeration is 2^n. Do not remove the assert; validate scaling differently.
+- **Exact reference values** (`exact_moments`, `exact_cascade`) enforce `n ≤ 20` (or `< 21`) with `assert` — enumeration is 2^n. Raised from 16 for headroom; the dashboard UI still caps n at 16 because the budget-OPT subset search is C(n,K) × 2^n and explodes regardless. Do not remove the assert; validate scaling differently.
 - **RNG:** everything takes `np.random.Generator`; use `np.random.default_rng(seed)`. Instances are seeded via (`n`, `seed`) — `risk_network`'s structure depends only on those two.
 - Slide comments/code style: short docstrings with a purpose; empty `__init__.py`s; one class/dataclass or a few related functions per file.
 
+## Qollab lab (`qollab_lab/`, qollab Python project)
+
+Minimal hackathon entry (idea: `docs/ideas/qemcmc-dashboard.md`; the JS-project
+route is documented — and abandoned — in `dashboard/CHANGELOG.md`): a
+top-level `main.py` (qollab's Python-project entry), vendored package modules
+under `py/` (same drift-check discipline as `dashboard/py/`), and console
+output with matplotlib SVG figures. The Run-settings form is auto-generated
+from `main()`'s strictly-annotated signature; the quantum arm samples 1
+shot/step from the injected `backend` global via `QeProposal(simulator=...)`.
+Key runtime facts: Pyodide Python 3.14 + qiskit 2.x + numpy/matplotlib
+bundled; no qiskit-aer wheel (hence the lazy import); `plt.show()` renders
+SVG, `plt.savefig` offers a PNG download; GET-only network; no `input()`;
+the runtime calls `main()` after the script — don't call it yourself.
+Quantum-arm numbers vary run-to-run at small step counts (Aer's sampling RNG
+is unseeded); that is expected, not a bug.
+
 ## Testing status
 
-No test directory or tests exist yet. When adding tests, validation strategy observed in the codebase: compare sampler moments against `exact_moments`/`exact_cascade` on small `n` (enumeration ground truth), plus ESS/R-hat via `analysis/diagnostics.py`.
+`tests/test_diagnostics.py`: FFT autocorr vs direct computation, ESS sanity (iid ≈ n, AR(1) shrinks, constant = n), sampler-χ vs `exact_susceptibility` on a small instance, barrier raised to 20 (n=16 computes, n=21 asserts), Diagnostics ESS/stderr sanity. Broader validation strategy: compare sampler moments against `exact_moments`/`exact_cascade` on small `n` (enumeration ground truth).
+
+## Dashboard (`dashboard/`, qollab runtime)
+
+Consolidated advisor-facing front end (one-pager: `docs/ideas/qemcmc-dashboard.md`), replacing the `webapp/` + `qollab_app/` mirrors, which are kept as reference. Two economy tabs (finance/traffic) reusing the shared measurement protocol; numeric parameter inputs mirror the experiment CLIs (defaults = CLI defaults) with regime tooltips from this file.
+
+- Compute split: `py/api.py` (vendored package modules + bridge, plain lists/dicts across the `.toJs()` boundary) does every analytical step; the quantum arm runs in JS (`ui/engine.js`) — the same Trotter circuit via the qiskit JS API, 1 shot per step from qollab's injected `backend` (WASM Aer). `py/` copies must be re-diffed against `src/` after core changes (see `dashboard/README.md`).
+- CLI parity is pinned: race Metropolis uses seed offset 0, sequential dose chains use the CLI's `chain_calls` counter (1, 2, …) as seed offset, dose 1 reuses the race χ, and `m(S)` is scored on the ORIGINAL field with the accumulated set (not the per-dose edited field — getting this wrong double-doses). Validated: race relerr/Spearman and metro-seq doses match `experiments/financial_contagion.py` exactly.
+- Regret ground truth: `optimal_m` asserts C(n,K) ≤ 60k subsets; UI caps budget at 4.

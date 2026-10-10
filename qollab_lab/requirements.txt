@@ -1,0 +1,5 @@
+# Qollab auto-adds qiskit (qiskit>=2.5.2,<3.0.0) if unlisted.
+# NumPy and Matplotlib ship with the Pyodide runtime.
+# Deliberately NO qiskit-aer: it has no Pyodide wheel, and the quantum arm
+# samples from the injected `backend` global instead (see README).
+numpy

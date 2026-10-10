@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+reports/
+docs/ideas/
+qollab_app/
+webapp/
+dashboard/
+.DS_Store

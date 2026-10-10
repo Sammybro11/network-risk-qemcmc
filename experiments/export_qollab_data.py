@@ -24,6 +24,7 @@ from risk_qemcmc.problems.finance import (
     debtrank_scores,
     eigenvector_scores,
     financial_instance,
+    sequential_greedy,
     spearman,
     strength_scores,
 )
@@ -49,11 +50,14 @@ def main():
     ap.add_argument("--budget", type=int, default=3)
     ap.add_argument("--omega", type=float, default=2.0)
     ap.add_argument("--theta", type=float, default=0.15)
+    ap.add_argument("--fracs", nargs=3, type=float, default=(0.2, 0.3, 0.5),
+                    help="tier fractions core intermediate periphery")
     ap.add_argument("--stride", type=int, default=4, help="keep every k-th state")
     args = ap.parse_args()
 
     n = args.n
-    J, h, A, tiers = financial_instance(n, seed=args.seed, lam=args.lam, vuln=args.vuln)
+    J, h, A, tiers = financial_instance(n, seed=args.seed, lam=args.lam, vuln=args.vuln,
+                                        fracs=tuple(args.fracs))
     beta = args.beta
 
     chi_exact = exact_susceptibility(J, h, beta)
@@ -65,21 +69,32 @@ def main():
     seeds = [int(i) for i in np.where(tiers == "core")[0][:1]]
     cascade = cascade_closure(A, args.theta, seeds)
 
+    def sample_chains(h_k, propose, chains, seed_offset=0):
+        results = []
+        for seed in range(chains):
+            results.append(
+                MCMC(J, h_k, beta=beta, propose=propose,
+                     rng=np.random.default_rng(seed_offset + seed)).sample(
+                    args.steps, z0=np.ones(n), burn_in=args.burn_in
+                )
+            )
+        return results
+
+    def chain_mu(h_k, propose, seed_offset):
+        results = sample_chains(h_k, propose, args.chains, seed_offset)
+        states = np.concatenate([r.states for r in results])
+        return susceptibility(states, beta).mean(axis=0)
+
     arms = {}
     for name, propose in {
         "metro": local_proposal,
         "quantum": QeProposal(J, h),
     }.items():
-        states_all, energies_all, accepted_all = [], [], []
-        ess_vals = []
-        for seed in range(args.chains):
-            res = MCMC(
-                J, h, beta=beta, propose=propose, rng=np.random.default_rng(seed)
-            ).sample(args.steps, z0=np.ones(n), burn_in=args.burn_in)
-            states_all.append(res.states)
-            energies_all.append(res.energies)
-            accepted_all.append(res.accepted)
-            ess_vals.append(Diagnostics(res, reference_energy=exact_e).ess() / res.n_steps)
+        results = sample_chains(h, propose, args.chains)
+        states_all = [r.states for r in results]
+        energies_all = [r.energies for r in results]
+        accepted_all = [r.accepted for r in results]
+        ess_vals = [Diagnostics(r, reference_energy=exact_e).ess() / r.n_steps for r in results]
         states = np.concatenate(states_all)
         energies = np.concatenate(energies_all)
         accepted = np.concatenate(accepted_all)
@@ -135,6 +150,45 @@ def main():
             str(k): {"m": exact_m(topk(scores, k)), "set": topk(scores, k)}
             for k in range(1, args.budget + 1)
         }
+
+    # ---- sequential (re-ranked per dose) bailout policy arms ----
+    # Dose 1 reuses the race chi (identical chain seeds); later doses
+    # re-equilibrate chains at the CURRENT field before re-ranking.
+    def exact_mu(h_k):
+        return exact_susceptibility(J, h_k, beta).mean(axis=0)
+
+    chain_calls = {"n": 0}
+
+    def sequential_rank(race_mu, propose):
+        cache = {}
+
+        def rank(h_k):
+            key = np.asarray(h_k, float).tobytes()
+            if key not in cache:
+                if key == np.asarray(h, float).tobytes() and race_mu is not None:
+                    cache[key] = np.asarray(race_mu, float)
+                elif propose is None:
+                    cache[key] = exact_mu(h_k)
+                else:
+                    chain_calls["n"] += 1
+                    cache[key] = chain_mu(np.asarray(h_k, float), propose, chain_calls["n"])
+            return cache[key]
+
+        return rank
+
+    for name, race, propose in (
+        ("exact-seq", None, None),
+        ("metro-seq", arms["metro"]["mu"], local_proposal),
+        ("quantum-seq", arms["quantum"]["mu"], QeProposal(J, h)),
+    ):
+        order, trace = sequential_greedy(h, args.omega, args.budget,
+                                         sequential_rank(race, propose), exact_m)
+        bailout_table[name] = {
+            str(k): {"m": mval, "set": s} for k, (s, mval) in enumerate(trace, 1)
+        }
+        print(f"{name}: doses {order} -> "
+              + ", ".join(f"K={k}: m={tm:.3f}" for k, (ts, tm) in enumerate(trace, 1)))
+
     bailout_table["random-mean"] = {k: {"m": v, "set": []} for k, v in rand_m.items()}
 
     payload = {

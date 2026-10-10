@@ -173,11 +173,3 @@ is unseeded); that is expected, not a bug.
 ## Testing status
 
 `tests/test_diagnostics.py`: FFT autocorr vs direct computation, ESS sanity (iid ≈ n, AR(1) shrinks, constant = n), sampler-χ vs `exact_susceptibility` on a small instance, barrier raised to 20 (n=16 computes, n=21 asserts), Diagnostics ESS/stderr sanity. Broader validation strategy: compare sampler moments against `exact_moments`/`exact_cascade` on small `n` (enumeration ground truth).
-
-## Dashboard (`dashboard/`, qollab runtime)
-
-Consolidated advisor-facing front end (one-pager: `docs/ideas/qemcmc-dashboard.md`), replacing the `webapp/` + `qollab_app/` mirrors, which are kept as reference. Two economy tabs (finance/traffic) reusing the shared measurement protocol; numeric parameter inputs mirror the experiment CLIs (defaults = CLI defaults) with regime tooltips from this file.
-
-- Compute split: `py/api.py` (vendored package modules + bridge, plain lists/dicts across the `.toJs()` boundary) does every analytical step; the quantum arm runs in JS (`ui/engine.js`) — the same Trotter circuit via the qiskit JS API, 1 shot per step from qollab's injected `backend` (WASM Aer). `py/` copies must be re-diffed against `src/` after core changes (see `dashboard/README.md`).
-- CLI parity is pinned: race Metropolis uses seed offset 0, sequential dose chains use the CLI's `chain_calls` counter (1, 2, …) as seed offset, dose 1 reuses the race χ, and `m(S)` is scored on the ORIGINAL field with the accumulated set (not the per-dose edited field — getting this wrong double-doses). Validated: race relerr/Spearman and metro-seq doses match `experiments/financial_contagion.py` exactly.
-- Regret ground truth: `optimal_m` asserts C(n,K) ≤ 60k subsets; UI caps budget at 4.

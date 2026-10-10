@@ -2,6 +2,7 @@ import { Registry } from './registry.js';
 import { Network2D } from './ui/network2d.js';
 import { drawTraces, drawRanking, drawRegret } from './ui/charts.js';
 import { BailoutPanel } from './ui/bailout.js';
+import { cumulativeMean } from './ui/stats.js';
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $('status').textContent = msg; };
@@ -119,12 +120,10 @@ class App {
         
         const c1 = document.createElement('canvas');
         c1.id = 'chart-trace';
-        c1.height = 140;
         chartsDiv.appendChild(c1);
         
         const c2 = document.createElement('canvas');
         c2.id = 'chart-conv';
-        c2.height = 140;
         chartsDiv.appendChild(c2);
         
         section.appendChild(chartsDiv);
@@ -141,7 +140,6 @@ class App {
         chartsDiv.className = 'charts';
         const c1 = document.createElement('canvas');
         c1.id = 'chart-ranking';
-        c1.height = 250;
         chartsDiv.appendChild(c1);
         section.appendChild(chartsDiv);
         workspace.appendChild(section);
@@ -231,6 +229,18 @@ class App {
     $('btn-live').disabled = false;
     $('btn-replay').addEventListener('click', () => this.replay());
     $('btn-live').addEventListener('click', () => this.runLive());
+
+    if (!this.resizeObserver) {
+      this.resizeObserver = new ResizeObserver(() => {
+        if (!this.isLive) {
+          // If not currently running a live loop, redraw immediately on resize
+          if (this.currentAdapter && this.currentAdapter.data) {
+            this.updateCharts();
+          }
+        }
+      });
+      this.resizeObserver.observe($('module-workspace'));
+    }
   }
 
   replay() {
@@ -313,6 +323,21 @@ class App {
 
     if ($('chart-ranking')) {
       drawRanking($('chart-ranking'), ranking);
+    }
+
+    if ($('chart-trace')) {
+      const rData = this.currentAdapter.getReplayData();
+      if (rData) {
+        drawTraces($('chart-trace'), [
+          { name: 'Metropolis', color: '#F08A73', ys: rData.mE },
+          { name: 'QeMCMC', color: '#62B6CF', ys: rData.qE },
+        ], { reference: rData.exactEnergy, yLabel: 'energy' });
+        
+        drawTraces($('chart-conv'), [
+          { name: 'Metropolis', color: '#F08A73', ys: cumulativeMean(rData.mE) },
+          { name: 'QeMCMC', color: '#62B6CF', ys: cumulativeMean(rData.qE) },
+        ], { reference: rData.exactEnergy, yLabel: 'cumulative mean energy' });
+      }
     }
     
     if ($('chart-regret')) {

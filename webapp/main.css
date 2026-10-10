@@ -216,18 +216,17 @@ input[type="number"], select {
 
 .panel .hint { font-size: 0.85rem; color: var(--text-muted); }
 
-.network-container { display: flex; flex-direction: column; }
+.network-container { display: flex; flex-direction: column; flex: 1; }
 .network { 
   width: 100%; 
-  aspect-ratio: 1 / 1;
+  flex: 1;
   min-height: 300px;
-  max-height: 450px;
   background-color: var(--bg-canvas); 
   cursor: crosshair; 
   display: block; 
 }
-.charts { padding: 0.75rem; }
-canvas { display: block; width: 100%; margin-bottom: 0.75rem; }
+.charts { padding: 0.75rem; display: flex; flex-direction: column; flex: 1; }
+canvas { display: block; width: 100%; flex: 1; min-height: 200px; margin-bottom: 0.75rem; }
 
 .stat-grid {
   display: grid;

@@ -34,6 +34,7 @@ from risk_qemcmc.problems.finance import (
     debtrank_scores,
     eigenvector_scores,
     financial_instance,
+    sequential_greedy,
     spearman,
     strength_scores,
 )
@@ -44,11 +45,11 @@ from risk_qemcmc.problems.qubo import (
 )
 
 
-def run_chains(J, h, beta, propose, steps, chains, burn_in):
+def run_chains(J, h, beta, propose, steps, chains, burn_in, seed_offset=0):
     results = []
     for seed in range(chains):
         results.append(
-            MCMC(J, h, beta=beta, propose=propose, rng=np.random.default_rng(seed)).sample(
+            MCMC(J, h, beta=beta, propose=propose, rng=np.random.default_rng(seed_offset + seed)).sample(
                 steps, z0=np.ones(len(h)), burn_in=burn_in
             )
         )
@@ -77,9 +78,12 @@ def main():
     ap.add_argument("--budget", type=int, default=3)
     ap.add_argument("--omega", type=float, default=2.0, help="bailout field strength")
     ap.add_argument("--theta", type=float, default=0.15, help="cascade threshold on A")
+    ap.add_argument("--fracs", nargs=3, type=float, default=(0.2, 0.3, 0.5),
+                    help="tier fractions core intermediate periphery")
     args = ap.parse_args()
 
-    J, h, A, tiers = financial_instance(args.n, seed=42, lam=args.lam, vuln=args.vuln)
+    J, h, A, tiers = financial_instance(args.n, seed=42, lam=args.lam, vuln=args.vuln,
+                                        fracs=tuple(args.fracs))
     beta = args.beta
     n = len(h)
 
@@ -119,7 +123,6 @@ def main():
         "strength": strength_scores(A),
         "eigenvector": eigenvector_scores(A),
         "debtrank": debtrank_scores(A, seeds),
-        "random-mean": None,
     }
 
     def exact_m(S):
@@ -136,14 +139,65 @@ def main():
     rand_m = {k: float(np.mean([exact_m(list(rng.choice(n, k, replace=False)))
                                 for _ in range(16)])) for k in range(1, args.budget + 1)}
 
+    # ---- sequential (re-ranked per dose) bailout policy arms ----
+    # Dose 1 reuses each arm's race chi (same chain seeds); later doses
+    # re-equilibrate at the CURRENT field (h minus prior bailouts), so the
+    # policy is reactive instead of a static truncated ranking.
+    def exact_mu(h_k):
+        return exact_susceptibility(J, h_k, beta).mean(axis=0)
+
+    def chain_mu(propose, h_k, seed_offset):
+        results = run_chains(J, h_k, beta, propose, args.steps, args.chains,
+                             args.burn_in, seed_offset=seed_offset)
+        return susceptibility(np.concatenate([r.states for r in results]), beta).mean(axis=0)
+
+    chain_calls = {"n": 0}
+
+    def sequential_rank(race_mu, propose):
+        cache = {}
+
+        def rank(h_k):
+            key = np.asarray(h_k, float).tobytes()
+            if key not in cache:
+                if key == np.asarray(h, float).tobytes() and race_mu is not None:
+                    cache[key] = np.asarray(race_mu, float)
+                elif propose is None:
+                    cache[key] = exact_mu(h_k)
+                else:
+                    chain_calls["n"] += 1
+                    cache[key] = chain_mu(propose, np.asarray(h_k, float), chain_calls["n"])
+            return cache[key]
+
+        return rank
+
+    seq_rows = {}
+    for name, race, prop in (
+        ("exact-seq", None, None),
+        ("metro-seq", samplers["metro"], local_proposal),
+        ("quantum-seq", samplers["quantum"], QeProposal(J, h)),
+    ):
+        rank = sequential_rank(race, prop)
+        order, trace = sequential_greedy(h, args.omega, args.budget, rank, exact_m)
+        seq_rows[name] = {str(k): {"m": mval, "set": s} for k, (s, mval) in enumerate(trace, 1)}
+        print(f"{name}: doses {order} -> "
+              + ", ".join(f"K={k}: m={tm:.3f}" for k, (ts, tm) in enumerate(trace, 1)))
+
+    table = {
+        name: {str(k): {"m": exact_m(topk(scores, k)), "set": topk(scores, k)}
+               for k in range(1, args.budget + 1)}
+        for name, scores in strategies.items()
+    }
+    table.update(seq_rows)
+    table["random-mean"] = {str(k): {"m": rand_m[k], "set": []} for k in range(1, args.budget + 1)}
+
     print(f"\nbailout ranking quality at omega={args.omega}: m(S) under rescue / "
           f"regret vs exact optimum (higher m = healthier, lower regret = better)")
     header = f"{'strategy':>12}" + "".join(f"  K={k:<9d}" for k in range(1, args.budget + 1))
     print(header)
-    for name, scores in strategies.items():
+    for name, row in table.items():
         cells = []
         for k in range(1, args.budget + 1):
-            m = rand_m[k] if name == "random-mean" else exact_m(topk(scores, k))
+            m = row[str(k)]["m"]
             cells.append(f"  {m:+.3f}/{opt_m[k] - m:.3f}")
         print(f"{name:>12}" + "".join(cells))
     print(f"{'exact-opt':>12}" + "".join(f"  {opt_m[k]:+.3f}/0.000" for k in range(1, args.budget + 1)))

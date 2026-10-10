@@ -99,7 +99,8 @@ def financial_instance(
 
 
 def apply_bailout(h: np.ndarray, nodes, omega: float) -> np.ndarray:
-    """Bailout as stabilising longitudinal field: h_i -> h_i - omega * b_i."""
+    """Bailout as stabilising longitudinal field:
+        for i in nodes: h_i -> h_i - omega * b_i."""
     out = h.copy().astype(float)
     out[list(nodes)] -= omega
     return out
@@ -152,9 +153,39 @@ def debtrank_scores(A: np.ndarray, seeds, alpha: float = 0.85) -> np.ndarray:
     return A @ distress
 
 
+def sequential_greedy(
+    h: np.ndarray,
+    omega: float,
+    budget: int,
+    rank,
+    m_fn,
+) -> tuple[list[int], list[tuple[list[int], float]]]:
+    """Reactive bailout policy: re-rank banks before every dose.
+
+    A static ranking truncated to top-K cannot see that the value of a
+    second bailout depends on which banks were already rescued. This
+    policy re-ranks against the CURRENT field h_i - omega * 1_{i in S}
+    before each dose (via `rank`, typically the sampler's updated aggregate
+    susceptibility mu) and picks the argmax marginal utility:
+
+        rank(h_k) -> per-bank rescue-utility scores
+        m_fn(S)   -> post-rescue mean health (reported per budget k)
+
+    Returns the dose order and [(set S_k, m(S_k))] for k = 1..budget.
+    """
+    S: list[int] = []
+    trace: list[tuple[list[int], float]] = []
+    for _ in range(budget):
+        h_k = apply_bailout(h, S, omega)
+        scores = np.asarray(rank(h_k), float)
+        best = max((j for j in range(len(h)) if j not in S), key=lambda j: scores[j])
+        S = S + [best]
+        trace.append((list(S), float(m_fn(S))))
+    return S, trace
+
+
 def spearman(a: np.ndarray, b: np.ndarray) -> float:
     """Rank correlation with average-tie ranks."""
-
     def ranks(x):
         order = np.argsort(x, kind="stable")
         r = np.empty(len(x))

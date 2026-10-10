@@ -48,6 +48,12 @@ class Diagnostics:
         return self.ess() / self.result.total_shots_or_steps
 
 
+def susceptibility(states: np.ndarray, beta: float) -> np.ndarray:
+    """Bailout susceptibility chi_ij = beta Cov(z_i, z_j) from chain samples."""
+    states = np.asarray(states, dtype=float)
+    return beta * np.cov(states.T)
+
+
 def rhat(results: list[MCMCResult]) -> float:
     """Rank-normalized split-R-hat over per-chain energy series (>= 2 chains)."""
     energies = np.asarray([r.energies for r in results])

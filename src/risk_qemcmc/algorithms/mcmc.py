@@ -72,8 +72,4 @@ class MCMC:
             energies=np.array(energies),
             accepted=np.array(accepted, dtype=bool),
         )
-        shots = getattr(self.propose, "shots_used", None)
-        if shots is not None:
-            result.total_shots = shots
-            result.kept_shots = burn_in + n_steps
         return result

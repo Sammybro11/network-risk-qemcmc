@@ -55,7 +55,7 @@ def default_counts(states: np.ndarray) -> np.ndarray:
 def exact_cascade(J: np.ndarray, h: np.ndarray, beta: float, k: int) -> float:
     """Exact Boltzmann P(#defaults >= k) by enumeration (small n only)."""
     n = len(h)
-    assert n <= 16, "exact_cascade only works for small n"
+    assert n <= 20, "exact_cascade only works for small n"
 
     states = ((np.arange(2**n)[:, None] >> np.arange(n)) & 1) * 2 - 1
     energies = 0.5 * np.einsum("si,ij,sj->s", states, J, states) + states @ h

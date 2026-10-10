@@ -14,7 +14,6 @@ collapses to the Boltzmann factor and MCMC needs no Q evaluation.
 import warnings
 
 import numpy as np
-from qiskit_aer import AerSimulator
 
 from ..compile.trotter import trotter_circuit
 
@@ -30,15 +29,22 @@ class QeProposal:
         time: float | tuple[float, float] = (2.0, 20.0),
         r: int | None = None,
         delta_t: float | None = None,
+        simulator=None,
     ):
         if r is not None and delta_t is not None:
             raise ValueError("pass only one of r or delta_t")
         self.J, self.h = J, h
         self.gamma, self.time = gamma, time
         self.r, self.delta_t = r, delta_t
-        # ponytail: cap Aer's OpenMP pool at 1 thread; shots=1 makes its internal
-        # parallelism pure overhead, and many worker processes otherwise thrash
-        self.sim = AerSimulator(max_parallel_threads=1)
+        if simulator is not None:
+            # e.g. qollab's pre-created `backend` global (WASM Aer or BasicSimulator)
+            self.sim = simulator
+        else:
+            # ponytail: cap Aer's OpenMP pool at 1 thread; shots=1 makes its internal
+            # parallelism pure overhead, and many worker processes otherwise thrash
+            from qiskit_aer import AerSimulator
+
+            self.sim = AerSimulator(max_parallel_threads=1)
         self._check_dt()
 
     @staticmethod

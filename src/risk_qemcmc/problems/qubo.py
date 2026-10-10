@@ -17,7 +17,7 @@ def ising_energy(z, J: np.ndarray, h: np.ndarray) -> float:
 
 def _enumerate(J: np.ndarray, h: np.ndarray, beta: float):
     n = len(h)
-    assert n < 16, "n too large for exact enumeration"
+    assert n < 21, "n too large for exact enumeration"
     states = ((np.arange(2**n)[:, None] >> np.arange(n)) & 1) * 2 - 1
     energies = 0.5 * np.einsum("si,ij,sj->s", states, J, states) + states @ h
     weights = np.exp(-beta * (energies - energies.min()))

@@ -228,3 +228,4 @@ dashboard/
 # Generated Reports
 financial_contagion_report.md
 
+.smoke/

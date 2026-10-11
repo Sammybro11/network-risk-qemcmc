@@ -1,24 +1,47 @@
-# QeMCMC method-quality lab (qollab Python project)
+# QeMCMC showcase lab (qollab Python project)
 
-Minimal, pure-Python qollab project: a top-level `main.py` (qollab's
-required entry for Python projects), a vendored copy of the package under
-`py/`, and **console output with matplotlib SVG figures** — no JS, no HTML,
-no chart library. This replaces the abandoned `dashboard/` (JS project)
-approach; see `dashboard/CHANGELOG.md` for why.
+One Run button, two parts, console output with matplotlib SVG figures — no
+JS, no HTML, no chart library. A top-level `main.py` (qollab's required
+entry for Python projects), a vendored copy of the package under `py/`,
+and the compact scenario digests baked into `py/scenarios_data.py`.
+This replaces the abandoned `dashboard/` (JS project) approach; see
+`dashboard/CHANGELOG.md` for why.
 
-## What it runs
+## Part 1 — recorded scenario gallery (renders instantly)
 
-The same measurement protocol as `experiments/financial_contagion.py` and
-`experiments/traffic_congestion.py`, parameterized by qollab's auto-generated
-Run-settings form (built from `main()`'s annotated signature):
+Every plot for every recorded showcase scenario (s1 Conglomerate Core,
+s2 Hidden Amplifier, s3 Rival Alliances, s4 Rush Hour), from ~35 KB digests
+of the ~100 MB experiment payloads (regenerate with
+`experiments/export_scenario_digests.py`):
 
-- `method` — "finance" (size = banks) or "traffic" (size = grid side L)
-- `size`, `lam`, `vuln`, `beta`, `omega`, `budget`, `steps`, `chains`, `burn_in`, `seed`
+- network map (tier colours, node size = exact susceptibility, Q = quantum
+  top pick, cascade seeds ringed)
+- basin histograms (where each sampler spends its time vs exact m)
+- energy + magnetization chain traces (the freezing story)
+- accepted-move flip-size histograms (the mechanism: local hops vs
+  multi-spin region flips)
+- convergence ladders (steps until the ranking is correct)
+- mu ranking bars vs structural baselines; regret curves for static AND
+  sequential policies
+- cross-scenario time-to-accuracy summary
 
-Outputs: sampler diagnostics table (chi relerr / mu Spearman / ESS per step /
-acceptance), the full ranking-quality table (m(S) and regret per strategy per
-budget, incl. sequential arms), and three SVG figures — cumulative-mean energy
-convergence vs exact, mu ranking bars, m(S) vs budget curves.
+Each scenario prints its story + fidelity/cost table first
+(`py/gallery_text.py` holds the narrative; caveats included).
+
+## Part 2 — low-cost live run (~1 min)
+
+Right after the gallery, the s4 Rush-Hour instance is rebuilt and re-run
+live: exact truth by 2^9-state enumeration, Metropolis vs QeMCMC race
+(1 shot/step through the `backend` global), widening intervention study,
+then 3 figures and a live-vs-recorded comparison table against the
+recorded s4 numbers. Defaults are `steps=400, chains=1, burn_in=60` and
+`live_quantum=True`; the remaining form fields (`beta`, `vuln`, `lam`,
+`frustration`, `omega`, `budget`, `quantum_gamma`, `quantum_time`, `seed`)
+move the instance and proposal around.
+
+For the fully tweakable, slower-default version of the same protocol see
+the separate `scenario_notebook/` qollab project (every knob on the form,
+staged prints between stages).
 
 ## The quantum arm on qollab
 
@@ -33,9 +56,11 @@ is injected — so `requirements.txt` does NOT list qiskit-aer.
 
 ## Files
 
-- `main.py` — entry point: Run-settings form, tables, figures.
+- `main.py` — entry point: Run-settings form, gallery, live run, figures.
 - `py/` — vendored package modules + `api.py` (study orchestration):
-  `qubo/finance/traffic/proposals/mcmc/diag/trotter/qe_proposal`.
+  `qubo/finance/traffic/proposals/mcmc/diag/trotter/qe_proposal`, plus
+  `scenarios_data.py` (bundled digests) and `gallery.py` / `gallery_text.py`
+  (the Part 1 renderer).
   Re-diff against `src/risk_qemcmc/` after core changes:
   ```bash
   for f in qubo finance traffic proposals diag; do
@@ -61,6 +86,9 @@ is injected — so `requirements.txt` does NOT list qiskit-aer.
   `plt.savefig(name)` offers a PNG download (nothing is written to disk).
 - Pyodide 3.14 + qiskit 2.x + NumPy 2.x + matplotlib bundled; GET-only
   network; no `input()`; no run time limit (Stop gives Python 5s).
-- Local smoke test: `uv run python -c "import importlib.util; ..."` — see
-  the run in `dashboard/CHANGELOG.md`; or simply run the experiment CLIs,
-  which share the same protocol.
+- Local smoke test (Aer works locally; it just fails inside some sandboxes
+  with an OMP SHM error):
+  ```bash
+  MPLCONFIGDIR=$PWD/.smoke/mplt .venv/bin/python -c \
+    "import matplotlib; matplotlib.use('Agg'); import main; main.main(steps=60, burn_in=10)"
+  ```

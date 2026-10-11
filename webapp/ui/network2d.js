@@ -3,10 +3,10 @@
 // node red and emits an expanding pulse; nodes are click-pickable for the
 // bailout lab, and selected nodes get a bright outline.
 
-const TIER_COLOR = { core: '#f2a33c', intermediate: '#4cc2ff', periphery: '#8b93a7' };
+const TIER_COLOR = { core: '#6A7D8E', intermediate: '#5A6D7E', periphery: '#4A5D6E' };
 const RING_RADIUS = [0.22, 0.55, 1.0];
-const HEALTHY = [0x39, 0xd9, 0x8a];
-const FAILED = '#ff4d5e';
+const HEALTHY = [74, 93, 110]; // #4A5D6E
+const FAILED = '#B9362D';
 
 const tierRing = (tier) => ['core', 'intermediate', 'periphery'].indexOf(tier);
 const hsvLerp = (tier) => {
@@ -92,8 +92,8 @@ export class Network2D {
       ctx.arc(cx, cy, R * RING_RADIUS[t], 0, 2 * Math.PI);
       ctx.stroke();
     }
-    ctx.fillStyle = '#8b93a7';
-    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = '#A8B0B5';
+    ctx.font = '10px "Inter", sans-serif';
     for (const [t, label] of [[0, 'core'], [1, 'intermediate'], [2, 'periphery']]) {
       ctx.fillText(label, cx + 4, cy - R * RING_RADIUS[t] - 5);
     }
@@ -114,7 +114,7 @@ export class Network2D {
       if (this._pulse[k] > 0 && !this._reduced) {
         ctx.strokeStyle = FAILED;
         ctx.globalAlpha = this._pulse[k] * 0.7;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(x, y, 5 + (1 - this._pulse[k]) * 16, 0, 2 * Math.PI);
         ctx.stroke();
@@ -134,8 +134,8 @@ export class Network2D {
         ctx.arc(x, y, r + 3.5, 0, 2 * Math.PI);
         ctx.stroke();
       }
-      ctx.fillStyle = '#0d1117';
-      ctx.font = 'bold 9px system-ui, sans-serif';
+      ctx.fillStyle = '#171B20';
+      ctx.font = 'bold 9px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
       ctx.fillText(node.bank, x, y + 3);
     }

@@ -2,19 +2,19 @@
 // reference line, per-bank ranking bars, and grouped bailout-regret bars.
 
 const COLORS = {
-  quantum: '#4cc2ff',
-  metro: '#ff7a59',
-  exact: '#e6e9f0',
-  grid: '#232b3d',
-  text: '#8b93a7',
-  healthy: '#39d98a',
-  failed: '#ff4d5e',
-  strength: '#b39ddb',
-  eigenvector: '#ffd166',
-  debtrank: '#7bd88f',
-  'random-mean': '#6b7280',
-  'quantum-chi': '#4cc2ff',
-  'metro-chi': '#ff7a59',
+  quantum: '#62B6CF',
+  metro: '#F08A73',
+  exact: '#A8B0B5',
+  grid: '#363D43',
+  text: '#A8B0B5',
+  healthy: '#4A5D6E',
+  failed: '#B9362D',
+  strength: '#6A7B89',
+  eigenvector: '#5A6B79',
+  debtrank: '#4A5D6E',
+  'random-mean': '#3A4B59',
+  'quantum-chi': '#62B6CF',
+  'metro-chi': '#F08A73',
 };
 
 function setup(canvas) {
@@ -52,7 +52,7 @@ export function drawTraces(canvas, series, { reference, yLabel = '' }) {
   ctx.clearRect(0, 0, w, h);
   axes(ctx, w, h, pad);
   ctx.fillStyle = COLORS.text;
-  ctx.font = '11px system-ui, sans-serif';
+  ctx.font = '11px "IBM Plex Mono", monospace';
   ctx.textAlign = 'right';
   ctx.fillText(hi.toFixed(1), pad.l - 6, Y(hi) + 4);
   ctx.fillText(lo.toFixed(1), pad.l - 6, Y(lo) + 4);
@@ -102,7 +102,7 @@ export function drawRanking(canvas, { muExact, arms, strategies, tiers }) {
   const bandH = (h - pad.t - pad.b) / n;
   const barH = Math.min(5, (bandH - 3) / entries.length);
 
-  ctx.font = '10px system-ui, sans-serif';
+  ctx.font = '10px "IBM Plex Mono", monospace';
   order.forEach((bank, row) => {
     const y0 = pad.t + row * bandH;
     ctx.fillStyle = COLORS.text;
@@ -142,7 +142,7 @@ export function drawRegret(canvas, { table, optimal, budget }) {
   const barW = Math.min(16, (groupW - 14) / names.length);
 
   axes(ctx, w, h, pad);
-  ctx.font = '10px system-ui, sans-serif';
+  ctx.font = '10px "IBM Plex Mono", monospace';
   Ks.forEach((k, g) => {
     const x0 = pad.l + g * groupW + 7;
     names.forEach((name, i) => {

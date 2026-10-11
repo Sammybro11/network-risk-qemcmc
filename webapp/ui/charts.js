@@ -128,33 +128,66 @@ export function drawTraces(canvas, series, { reference, yLabel = '', refLabel = 
 }
 
 export function drawRanking(canvas, { muExact, arms, strategies, tiers }) {
-  // Grouped horizontal bars per bank: exact mu vs each strategy, sorted by
-  // exact mu so the ranking story reads left to right.
+  // Grouped vertical bars per bank: exact mu vs each strategy, sorted by
+  // exact mu so the ranking story reads left to right. Values on the y
+  // axis with faint gridlines; labels rotate when groups get tight.
   const { ctx, w, h } = setup(canvas);
   ctx.clearRect(0, 0, w, h);
   const n = muExact.length;
   const entries = Object.entries({ exact: muExact, ...arms, ...strategies });
   const order = muExact.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).map(([, i]) => i);
   const maxV = Math.max(...entries.flatMap(([, v]) => v.map(Math.abs)), 1e-9);
-  // Sits under the mechanism panel, spanning the full grid width, so there is
-  // room for both 12-16 rows and a wider left gutter for the node labels.
-  const pad = { l: 96, r: 16, t: 18, b: 26 };
-  const bandH = (h - pad.t - pad.b) / n;
-  const barH = Math.min(5, (bandH - 3) / entries.length);
+  // Sits under the mechanism panel, spanning the full grid width. Left pad
+  // now holds y-axis tick labels; bottom pad holds the rotated node labels.
+  const pad = { l: 46, r: 16, t: 18, b: 40 };
+  const plotW = w - pad.l - pad.r;
+  const plotH = h - pad.t - pad.b;
+  const groupW = plotW / n;
+  const barW = Math.min(14, (groupW - 6) / entries.length);
 
-  ctx.font = '10px "IBM Plex Mono", monospace';
-  order.forEach((bank, row) => {
-    const y0 = pad.t + row * bandH;
-    ctx.fillStyle = COLORS.text;
-    ctx.textAlign = 'right';
-    ctx.fillText(`B${bank} ${tiers[bank]}`, pad.l - 6, y0 + bandH / 2 + 3);
+  // Faint horizontal gridlines + y ticks at quarters of the max value.
+  ctx.font = '9px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let f = 0; f <= 4; f++) {
+    const v = (maxV * f) / 4;
+    const y = pad.t + plotH - (f / 4) * plotH;
+    ctx.strokeStyle = f === 0 ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.08)';
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(pad.l + plotW, y);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.muted || 'rgba(255,255,255,0.5)';
+    ctx.fillText(v.toFixed(2), pad.l - 6, y);
+  }
+  ctx.textBaseline = 'alphabetic';
+
+  order.forEach((bank, col) => {
+    const x0 = pad.l + col * groupW;
+    const center = x0 + groupW / 2;
     entries.forEach(([name, vals], k) => {
       const v = vals[bank] / maxV;
-      const bw = v * (w - pad.l - pad.r) * 0.5;
-      const y = y0 + 2 + k * barH;
+      const bh = Math.max(1, v * plotH);
+      const x = center - (entries.length * barW) / 2 + k * barW;
       ctx.fillStyle = COLORS[name] || COLORS.exact;
-      ctx.fillRect(pad.l, y, Math.max(1, bw), barH - 1);
+      ctx.fillRect(x, pad.t + plotH - bh, barW - 1, bh);
     });
+
+    // Node label under its group; rotate when the group is narrower than
+    // the text so adjacent labels never collide (up to 16 banks in finance).
+    const label = `B${bank} ${tiers[bank]}`;
+    ctx.fillStyle = COLORS.text;
+    if (groupW < ctx.measureText(label).width + 4) {
+      ctx.save();
+      ctx.translate(center + 4, pad.t + plotH + 6);
+      ctx.rotate(-Math.PI / 3);
+      ctx.textAlign = 'right';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.textAlign = 'center';
+      ctx.fillText(label, center, pad.t + plotH + 14);
+    }
   });
 
   ctx.textAlign = 'left';

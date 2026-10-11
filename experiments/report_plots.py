@@ -70,7 +70,8 @@ plt.rcParams.update({
     "axes.spines.right": False,
 })
 
-run = json.load(open(ROOT / "webapp" / "data" / "run.json"))
+with open(ROOT / "webapp" / "data" / "run.json") as fh:
+    run = json.load(fh)
 exact_chi = np.array(run["exact"]["chi"])
 exact_mu = np.array(run["exact"]["mu"])
 tiers = run["tiers"]
@@ -119,7 +120,7 @@ def fig_chi_heatmaps():
         im = ax.imshow(chi, vmin=-vmax, vmax=vmax, cmap="RdBu_r")
         ax.set_title(title)
         ax.set_xticks([0, 5, 11]); ax.set_yticks([0, 5, 11])
-    fig.colorbar(im, ax=axes[0], shrink=0.85, label="$\\chi_{ij}$")
+    fig.colorbar(im, ax=axes[0], shrink=0.85, label="$\\chi_{ij}$")  # type: ignore[possibly-unbound] # 3-item zip above always binds im
 
     for ax, (err, title) in zip(axes[1][:2], [(q_err, "|quantum $-$ exact|"),
                                               (m_err, "|metro $-$ exact|")]):
@@ -132,7 +133,7 @@ def fig_chi_heatmaps():
                     f"\nrelerr  metro   = {m_err.sum() / np.abs(exact_chi).sum():.3f}"
                     "\n\nquantum recovers the\nmarginal-utility matrix\nthat drives bailout\npolicy; metro's is noise",
                     fontsize=9, va="top")
-    fig.colorbar(im, ax=[axes[1, 1], axes[1, 2]], shrink=0.85, label="abs error")
+    fig.colorbar(im, ax=[axes[1, 1], axes[1, 2]], shrink=0.85, label="abs error")  # type: ignore[possibly-unbound] # 2-item zip above always binds im
     fig.suptitle("Susceptibility matrices $\\chi_{ij} = \\beta\\,$Cov$(z_i, z_j)$ "
                  "(recorded 4000-step hero run)", fontsize=11, y=0.99)
     fig.savefig(OUT / "fig2_chi_heatmaps.png", bbox_inches="tight")
@@ -224,12 +225,12 @@ def fig_bailout_policy():
              fontsize=7, color=C_METRO)
     ax1.annotate("quantum-seq: sampled-$\\chi$\nmatches exact greedy",
                  xy=(2, 0.0), xytext=(0.5, 0.048), fontsize=8, color=C_QUANTUM,
-                 bbox=dict(fc="white", ec="none", alpha=0.85),
-                 arrowprops=dict(arrowstyle="->", color=C_QUANTUM))
+                 bbox={"fc": "white", "ec": "none", "alpha": 0.85},
+                 arrowprops={"arrowstyle": "->", "color": C_QUANTUM})
     ax1.annotate("static quantum ranking\ndegrades at K$\\geq$2",
                  xy=(3, 0.045), xytext=(3.3, 0.063), fontsize=8, color="#2b7bba",
-                 bbox=dict(fc="white", ec="none", alpha=0.85),
-                 arrowprops=dict(arrowstyle="->", color="#9bd4ff"))
+                 bbox={"fc": "white", "ec": "none", "alpha": 0.85},
+                 arrowprops={"arrowstyle": "->", "color": "#9bd4ff"})
 
     for name, m in PASTED_TABLE.items():
         if name in SEQ_COLORS:

@@ -94,7 +94,7 @@ def positions(payload):
 def flip_hist(states_list):
     """Histogram of accepted-move flip sizes across all chains."""
     n = None
-    h = None
+    h = np.zeros(0, dtype=np.int64)
     for states in states_list:
         s = np.asarray(states)
         if n is None:
@@ -102,7 +102,7 @@ def flip_hist(states_list):
             h = np.zeros(n + 1, dtype=np.int64)
         if len(s) > 1:
             d = (s[1:] != s[:-1]).sum(axis=1)
-            h += np.bincount(d, minlength=n + 1)
+            h = h + np.bincount(d, minlength=n + 1)
     return h.tolist()
 
 

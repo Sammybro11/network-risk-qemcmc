@@ -142,6 +142,50 @@ upstream to i), which feeds the reused finance baselines (`strength_scores` = lo
 - The `ring`/`--no-ring` knob is a **no-op at L = 3** (the perimeter cycle coincides with
   the grid streets); it only adds new edges for L ≥ 4, which exceeds exact enumeration.
 
+## Real-scenario showcase (`experiments/scen_s*.py`, the "time-to-accuracy" story)
+
+Six named scenarios (S1 tight conglomerate core, S2 hidden amplifier, S3 rival
+alliances — finance; S4 rush hour, S5 city tipping point — traffic; S6 metro at
+scale, finance n=20) built on one shared protocol in `experiments/scenarios_common.py`:
+`run_scenario(spec)` builds the instance (with optional frustration: sign-flipping the
+strongest top-tier couplings creates rival coalitions), computes exact ground truth
+(n < 16 via `qubo.exact_*`; 16 ≤ n ≤ 22 via `_enumerate_chunked`, a memory-safe chunked
+2^n pass), races metro vs QeMCMC on identical seeds, evaluates static top-K + sequential
+reactive bailout/widening policies against the exact optimum, and writes one
+self-contained JSON to `experiments/results/<name>.json`.
+
+**Record-everything discipline (the runs are expensive — never discard data):**
+`run_chains(..., record=True)` attaches a full per-step `trace` to every `MCMCResult`:
+states (int8), energies, accepted flags, and — for the quantum arm — the per-step
+Trotter params (γ, t, r) tapped via `QeProposal.last_params` (set in `__call__`, do
+not rely on it in the MH path). `run_scenario` serializes traces into the payload
+alongside the full instance matrices (J, h, A, β), so every downstream metric is
+recomputable offline. Sequential-policy doses are logged too
+(`intervention.sequential_doses_log`): the field each dose ranked at, the scores,
+and the full re-equilibration chains. If a figure needs something not in the JSON,
+extend the analysis — do not re-run the sampler.
+
+**Convergence curves from traces (backtracking):** because the full per-step trace
+is saved, `convergence_curve(story)` in `scenarios_common.py` recomputes χ/μ,
+χ-relerr, Spearman(μ, μ_exact), and χ-norm at prefix lengths (10% → 100% of the run)
+for both arms — the entire accuracy-vs-steps ladder from ONE saved run, zero new
+sampling (`attach_convergence_curves` wires it into every payload under
+`"convergence"`; `experiments/backfill_convergence.py` adds it to JSONs saved by
+older code). This is why runs can afford large step budgets: the long run IS the
+sweep. Two rules: (1) a prefix shows **within-run** convergence — what that sampler
+had achieved after t steps — not that a fresh restart could never catch up later
+(S4's metro reached relerr 0.067 at 20k after looking frozen at 2k–12k, ρ negative);
+(2) report the pair (accuracy at matched budget, steps at which each arm converges),
+not a single-point comparison. S4 measured at n=9, λ=2, vuln=0, β=2.5: quantum
+ρ ≈ +0.97 by 4k steps and flat, metro ρ negative through 12k and only correct at
+20k — the matched-budget time-to-accuracy gap, honestly bounded.
+
+`experiments/scen_preflight.py` gates scenarios before long runs (smoke checks
+always; `--full` adds the equilibrated energy-bias 4-stderr check with ESS math
+`ess = ess_per_step × n_steps` — the per-step figure is ESS per chain step, not a
+denominator — and the K=1 regret-gap check; both are withheld on 300-step smoke
+chains, where bias-by-construction and regret noise would false-fail).
+
 ## Conventions and gotchas
 
 - **Spin↔bit convention (easy to break):** spins are ±1, qubits are 0/1, mapped by `bit = (1 − z)//2` and `z = 1 − 2·bit`. `trotter_circuit` maps `z_i = +1 → |0⟩`, `−1 → |1⟩`. Aer's measured bitstring must be reversed (`[::-1]`) before converting to bits — see `QeProposal._propose_bits` (qiskit little-endian vs. spin-index order).
@@ -150,7 +194,7 @@ upstream to i), which feeds the reused finance baselines (`strength_scores` = lo
 - **Shots budget:** quantum burn-in and thinning steps still consume simulator shots; `MCMCResult` shot-count fields exist for proposals that track them, but no current proposal does — `total_shots_or_steps` then falls back to chain steps.
 - **Aer perf:** `AerSimulator(max_parallel_threads=1)` is deliberate — shots=1 makes OpenMP parallelism pure overhead, and parallel worker processes would otherwise thrash. Don't "fix" it.
 - **Trotter dt guard:** pass **either** fixed `r` **or** fixed `delta_t` (not both; `ValueError`); dt outside [0.1, 2.0] triggers a `warnings.warn` (not an error). Default `delta_t = 0.8`.
-- **Exact reference values** (`exact_moments`, `exact_cascade`) enforce `n ≤ 20` (or `< 21`) with `assert` — enumeration is 2^n. Raised from 16 for headroom; the dashboard UI still caps n at 16 because the budget-OPT subset search is C(n,K) × 2^n and explodes regardless. Do not remove the assert; validate scaling differently.
+- **Exact reference values** (`exact_moments`, `exact_cascade`) enforce `n ≤ 20` (or `< 21`) with `assert` — enumeration is 2^n. Raised from 16 for headroom; the dashboard UI still caps n at 16 because the budget-OPT subset search is C(n,K) × 2^n and explodes regardless. Do not remove the assert; validate scaling differently. `scenarios_common._enumerate_chunked` raises the practical ceiling to n ≤ 22 (chunked 2^n pass, a few hundred MB at n=22) for scenario ground truth without touching the assert.
 - **RNG:** everything takes `np.random.Generator`; use `np.random.default_rng(seed)`. Instances are seeded via (`n`, `seed`) — `risk_network`'s structure depends only on those two.
 - Slide comments/code style: short docstrings with a purpose; empty `__init__.py`s; one class/dataclass or a few related functions per file.
 

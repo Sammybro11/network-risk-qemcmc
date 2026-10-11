@@ -82,6 +82,17 @@ export class ScenarioAdapter {
     this.optimal = optimalBailouts(this.J, this.h, this.beta, this.budget, this.omega);
     this.cascadeFailed = cascadeClosure(this.A, this.spec.theta, d.cascade.seeds);
 
+    // Baseline keys differ by problem (finance ships `strength`, traffic ships
+    // `load`), and one of them is degenerate -- see degenerateBaselines().
+    this.baselineKeys = Object.keys(d.baselines);
+    this.degenerate = new Set(
+      this.baselineKeys.filter((k) => new Set(d.baselines[k].map((v) => v.toFixed(6))).size === 1)
+    );
+    // Size channel for the network map. NOT `strength`: on the EGJ dependency
+    // matrix every column of A sums to exactly 1 by construction, so
+    // strength_scores(A) is the constant vector and carries no ranking at all.
+    this.structureKey = this.degenerate.has('eigenvector') ? null : 'eigenvector';
+
     this.description =
       `${d.narrative.story} Recorded: ${d.spec.steps.toLocaleString()} steps x ` +
       `${d.spec.chains} chains per arm at beta = ${this.beta}, n = ${this.n}.`;
@@ -97,18 +108,22 @@ export class ScenarioAdapter {
         id: 'network',
         type: 'network',
         title: `01. ${this.spec.problem === 'traffic' ? 'Road grid' : 'Dependency network'}`,
-        hint: `Node size = exact susceptibility (the answer both samplers are chasing); ` +
-          `"Q" marks the quantum arm's top ${lex.action} pick; red ring = cascade seed. ` +
+        hint: `Colour is the equilibrium answer, size is what structural centrality would ` +
+          `tell you — so a large dark node is well-connected but not worth ${lex.action}, ` +
+          `and a small bright node is the one everyone else misses. ` +
           `Click a node to add it to the ${lex.action} lab.`,
         data: {
           A: this.A,
+          J: this.J,
           tiers: this.data.tiers,
           positions: this.data.positions,
           tierOrder: lex.tierOrder,
           importance: this.exact.mu,
+          structure: this.structureKey ? this.data.baselines[this.structureKey] : null,
           seeds: this.data.cascade.seeds,
           mark: { [qTop]: 'Q' },
         },
+        legend: this.getNetworkLegend(qTop),
       },
       {
         id: 'race',
@@ -144,6 +159,71 @@ export class ScenarioAdapter {
           `exhaustive optimum is exact, not estimated.`,
       },
     ];
+  }
+
+  // Spells out every visual channel. Without this the map is decoration: the
+  // viewer has no way to know that colour and size are deliberately encoding
+  // two different, disagreeing answers.
+  getNetworkLegend(qTop) {
+    const lex = this.lex;
+    const frustrated = (this.data.meta?.frustration_edges || []).length;
+    const items = [
+      {
+        kind: 'ramp',
+        label: 'Fill — exact susceptibility μ',
+        note: `the equilibrium answer: marginal gain from ${lex.action} at this ${lex.unit}`,
+        ends: ['low', 'high'],
+      },
+      {
+        kind: 'size',
+        label: 'Size — eigenvector centrality',
+        note: 'structure only, no temperature and no physics: what centrality would tell you',
+      },
+      {
+        kind: 'dash',
+        label: `Outline — tier`,
+        note: lex.tierOrder.join(' · '),
+        patterns: lex.tierOrder,
+      },
+      {
+        kind: 'edge',
+        label: 'Edge — coupling J',
+        note: frustrated
+          ? `solid = agreement (J < 0); dashed coral = frustrated (J > 0), ${frustrated} here`
+          : 'solid = agreement (J < 0); width by |J|. No frustrated couplings in this scenario',
+        frustrated: frustrated > 0,
+      },
+      {
+        kind: 'mark',
+        label: 'Q',
+        note: `the quantum arm's top ${lex.action} pick`,
+      },
+      {
+        kind: 'seed',
+        label: 'Red ring',
+        note: `cascade seed (${this.data.cascade.n_failed} of ${this.n} fail under forced closure)`,
+      },
+    ];
+    // The headline the encoding exists to deliver, computed rather than asserted.
+    const rank = (xs) => {
+      const order = [...xs.keys()].sort((a, b) => xs[b] - xs[a]);
+      const r = new Array(xs.length);
+      order.forEach((idx, pos) => { r[idx] = pos + 1; });
+      return r;
+    };
+    const rTruth = rank(this.exact.mu);
+    let callout = `The quantum arm's top pick is ${lex.Unit} ${qTop} (exact rank #${rTruth[qTop]}).`;
+    if (this.structureKey) {
+      const rStruct = rank(this.data.baselines[this.structureKey]);
+      let worst = 0;
+      for (let i = 1; i < this.n; i++) {
+        if (Math.abs(rTruth[i] - rStruct[i]) > Math.abs(rTruth[worst] - rStruct[worst])) worst = i;
+      }
+      callout =
+        `Biggest disagreement here: ${lex.Unit} ${worst} ranks #${rTruth[worst]} by exact ` +
+        `susceptibility but #${rStruct[worst]} by eigenvector centrality. ` + callout;
+    }
+    return { items, callout };
   }
 
   getMechanismData() {
@@ -348,21 +428,25 @@ export class ScenarioAdapter {
     };
   }
 
-  // "Steps until the ranking is right" from the recorded convergence ladder —
-  // the honest headline, since both arms converge given enough steps.
-  convergenceSummary(threshold = 0.9) {
+  // "Steps until the sampler is trustworthy" from the recorded convergence
+  // ladder -- the honest headline, since both arms converge given enough steps.
+  // Threshold is rho >= 0.9 AND chi relerr <= 0.1, the definition used in
+  // README.md; rank correlation alone clears earlier and would make the site
+  // quote different gaps than the repo does.
+  convergenceSummary(rhoMin = 0.9, relerrMax = 0.1) {
     const curves = this.data.convergence?.curves;
     if (!curves) return '';
     const firstGood = (arm) => {
-      const hit = (curves[arm] || []).find((p) => p.mu_spearman >= threshold);
+      const hit = (curves[arm] || [])
+        .find((p) => p.mu_spearman >= rhoMin && p.chi_relerr <= relerrMax);
       return hit ? hit.steps : null;
     };
     const q = firstGood('quantum'), m = firstGood('metro');
     if (!q && !m) return '';
     const fmtSteps = (s) => (s ? s.toLocaleString() + ' steps' : `never within ${this.spec.steps.toLocaleString()}`);
     const gap = q && m ? ` (${(m / q).toFixed(1)}x iteration-budget gap)` : '';
-    return `Time to a correct ranking (Spearman >= ${threshold}): QeMCMC ${fmtSteps(q)}, ` +
-      `Metropolis ${fmtSteps(m)}${gap}.`;
+    return `Time to accuracy (Spearman >= ${rhoMin} and χ relative error <= ${relerrMax}): ` +
+      `QeMCMC ${fmtSteps(q)}, Metropolis ${fmtSteps(m)}${gap}.`;
   }
 
   getMetadata() {
@@ -386,6 +470,22 @@ export class ScenarioAdapter {
   }
 
   getInterventionConfig() {
+    // Presets are derived from the baselines this scenario actually ships
+    // (finance: strength/eigenvector/debtrank, traffic: load/...), not a
+    // hardcoded list -- the hardcoded one offered a "Strength" button on
+    // traffic scenarios, where that key does not exist.
+    const label = { 'quantum-chi': 'QeMCMC χ', 'metro-chi': 'Metro χ', debtrank: 'DebtRank' };
+    const presets = [
+      { id: 'quantum-chi', label: label['quantum-chi'] },
+      { id: 'metro-chi', label: label['metro-chi'] },
+      ...this.baselineKeys.map((k) => ({
+        id: k,
+        label: label[k] || k.charAt(0).toUpperCase() + k.slice(1),
+        // A constant score vector ranks nothing; the button would silently
+        // pick nodes 0..K-1 by tie order and report that as a strategy.
+        degenerate: this.degenerate.has(k),
+      })),
+    ];
     return {
       n: this.n,
       tiers: this.data.tiers,
@@ -393,6 +493,7 @@ export class ScenarioAdapter {
       budget: this.budget,
       optimal: this.optimal,
       lex: this.lex,
+      presets,
       strategies: {
         ...this.data.baselines,
         'quantum-chi': this.data.arms.quantum.mu,

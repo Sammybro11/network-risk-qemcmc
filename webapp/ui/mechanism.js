@@ -19,13 +19,18 @@ const COLORS = {
   text: '#A8B0B5',
 };
 
+// Backing store is resized only on an actual change -- see the note in
+// charts.js: unconditional reassignment drives a ResizeObserver feedback loop.
 function setup(canvas) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = canvas.clientWidth, h = canvas.clientHeight || +canvas.getAttribute('height');
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
+  const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
   const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   return { ctx, w, h };
 }

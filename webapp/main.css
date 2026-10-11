@@ -449,17 +449,74 @@ table.mapping td:last-child { color: #4A5155; padding-right: 0; }
 
 .panel .hint { font-size: 0.85rem; color: var(--text-muted); }
 
+/* Canvas boxes get DETERMINISTIC heights from CSS, never from flex.
+   A canvas is a replaced element: its width/height attributes are its
+   intrinsic size, so sizing the box with `flex: 1` makes layout depend on the
+   backing store that the renderer is simultaneously computing from the box.
+   That circularity is what made the page jitter on some machines. */
 .network-container { display: flex; flex-direction: column; flex: 1; }
-.network { 
-  width: 100%; 
-  flex: 1;
-  min-height: 300px;
-  background-color: var(--bg-canvas); 
-  cursor: crosshair; 
-  display: block; 
+.network {
+  width: 100%;
+  height: clamp(300px, 34vh, 440px);
+  background-color: var(--bg-canvas);
+  cursor: crosshair;
+  display: block;
 }
+/* Network legend: says what every visual channel means. */
+.net-legend {
+  border-top: 1px solid var(--border-divider);
+  background-color: #1A2025;
+  padding: 0.85rem 1.1rem 1rem;
+}
+
+.net-legend ul {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.5rem 1.25rem;
+}
+
+.net-legend li { display: flex; align-items: flex-start; gap: 0.6rem; }
+
+.net-legend .leg-text { display: flex; flex-direction: column; font-size: 0.74rem; line-height: 1.35; }
+.net-legend .leg-text b { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-main); font-weight: 500; }
+.net-legend .leg-text span { color: var(--text-muted); }
+
+.net-legend .sw { flex: 0 0 auto; width: 34px; display: flex; align-items: center; gap: 2px; margin-top: 0.15rem; }
+.sw-ramp { height: 10px; border-radius: 2px; }
+.sw-size i { display: block; background: #55707E; border-radius: 50%; }
+.sw-size { justify-content: center; }
+
+.sw-dash { flex-direction: column; gap: 2px; }
+.sw-dash i { display: block; width: 100%; height: 0; border-top: 1.5px solid rgba(234, 230, 220, 0.5); }
+.sw-dash i.d1 { border-top-style: dashed; }
+.sw-dash i.d2 { border-top-style: dotted; }
+
+.sw-edge { flex-direction: column; gap: 3px; }
+.sw-edge i { display: block; width: 100%; height: 0; }
+.sw-edge i.ferro { border-top: 2px solid rgba(122, 139, 153, 0.85); }
+.sw-edge i.frus { border-top: 2px dashed var(--metro); }
+
+.sw-mark { font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; color: var(--quantum); justify-content: center; }
+
+.sw-seed {
+  width: 14px; height: 14px; margin-left: 10px;
+  border: 1.5px solid var(--distress); border-radius: 50%;
+}
+
+.leg-callout {
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border-divider);
+  font-size: 0.78rem;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+}
+
 .charts { padding: 0.75rem; display: flex; flex-direction: column; flex: 1; }
-canvas { display: block; width: 100%; flex: 1; min-height: 200px; margin-bottom: 0.75rem; }
+canvas { display: block; width: 100%; height: 210px; margin-bottom: 0.75rem; }
+#chart-regret { height: 150px; }
 
 .stat-grid {
   display: grid;
@@ -497,6 +554,7 @@ canvas { display: block; width: 100%; flex: 1; min-height: 200px; margin-bottom:
 .bailout-controls label { color: var(--text-muted); }
 
 .preset-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+.bailout-controls button.degenerate { opacity: 0.55; border-style: dashed; }
 
 .bank-picker {
   padding: 0.75rem 1rem;

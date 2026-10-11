@@ -21,13 +21,23 @@ const COLORS = {
   'metro-seq': '#F7BDAE',
 };
 
+// Resize the backing store ONLY when it actually changes. Assigning
+// canvas.width/height unconditionally on every draw rewrites the element's
+// intrinsic size, which perturbs flex layout, which wakes the ResizeObserver,
+// which redraws -- a loop that makes the whole page creep and jitter. It only
+// shows up on some machines because it depends on devicePixelRatio, scrollbar
+// width and font metrics.
 function setup(canvas) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = canvas.clientWidth, h = canvas.clientHeight || +canvas.getAttribute('height');
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
+  const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
   const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
   return { ctx, w, h };
 }
 

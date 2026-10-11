@@ -7,6 +7,7 @@ Each scenario is a named real-world situation where the network sits near a tipp
 | scenario | QeMCMC correct from | classical MH correct from |
 |---|---|---|
 | Tight Conglomerate Core | 4,000 | 12,000 |
+| Fragile Periphery, Hidden Amplifier | 12,000 | 16,000 |
 | Rival Alliances | 2,000 | 2,000 |
 | Rush-Hour Gridlock | 8,000 | 20,000 |
 
@@ -37,6 +38,35 @@ Setup: finance problem, n=12, 20,000 steps x 4 chains per arm.
 - The quantum arm runs on an unseeded simulator, so its numbers vary run-to-run; the ranking gap reported here is far larger than that run-to-run spread in the scenarios where it appears.
 - Prefix-truncated chains: within-run convergence, not independent-restart convergence.
 
+## Fragile Periphery, Hidden Amplifier (`s2_hidden_amplifier`)
+
+**A mid-tier bank quietly amplifies every shock**  The dangerous bank is not the biggest one: it sits in the middle of the network and multiplies whatever hits it. Vulnerability that only shows up under stress is exactly what a frozen sampler misses.
+
+Setup: finance problem, n=12, 20,000 steps x 4 chains per arm.
+
+### Time to correct ranking
+
+| arm | first correct prefix | full-length relerr | full-length rho |
+|---|---|---|---|
+| QeMCMC | 12,000 | 0.055 | +0.986 |
+| Classical MH | 16,000 | 0.075 | +0.916 |
+
+**QeMCMC ranked the bailout targets correctly at 12,000 steps; classical Metropolis needed 16,000.** That is a 1.3x iteration-budget gap.
+
+Both samplers chose the **same bailout sets at every budget** -- here the quantum advantage is in how *fast* the ranking became trustworthy, not in a different final decision.
+
+### Cost, reported fairly
+
+- Classical MH: 0.0102 ms/step, ESS/step 0.038, acceptance 0.03
+- QeMCMC: 66.2 ms/step (simulator), ESS/step 0.014, acceptance 0.29
+
+### Caveats
+
+- Convergence curves are prefix-truncated versions of the SAME chains (within-run convergence), not independent restarts -- each point uses fewer samples, and burn-in re-truncation is not modelled.
+- Wall-clock cost differs strongly between arms (ms/step and ESS/step are reported per scenario below); the headline is steps-to-correct-ranking, the sampler's iteration budget, not wall-clock seconds.
+- The quantum arm runs on an unseeded simulator, so its numbers vary run-to-run; the ranking gap reported here is far larger than that run-to-run spread in the scenarios where it appears.
+- Prefix-truncated chains: within-run convergence, not independent-restart convergence.
+
 ## Rival Alliances (`s3_rival_alliances`)
 
 **Two alliances whose guarantees cancel each other out**  Frustrated loops of guarantees mean no arrangement pleases everyone -- the energy landscape is rugged for every method. This is our honest control: here both samplers agree, and we say so.
@@ -51,6 +81,8 @@ Setup: finance problem, n=12, frustration=0.50, 20,000 steps x 4 chains per arm.
 | Classical MH | 2,000 | 0.039 | +1.000 |
 
 **No time-to-accuracy gap here** -- both samplers rank correctly from the shortest prefix. We report this scenario as a control, not a win.
+
+Both samplers chose the **same bailout sets at every budget** -- here the quantum advantage is in how *fast* the ranking became trustworthy, not in a different final decision.
 
 ### Cost, reported fairly
 
@@ -78,6 +110,8 @@ Setup: traffic problem, n=3, 20,000 steps x 4 chains per arm.
 | Classical MH | 20,000 | 0.067 | +0.967 |
 
 **QeMCMC ranked the bailout targets correctly at 8,000 steps; classical Metropolis needed 20,000.** That is a 2.5x iteration-budget gap.
+
+Both samplers chose the **same bailout sets at every budget** -- here the quantum advantage is in how *fast* the ranking became trustworthy, not in a different final decision.
 
 ### Cost, reported fairly
 

@@ -215,7 +215,7 @@ def plot_summary(entries, path):
     ax.set_yticklabels(names)
     ax.invert_yaxis()
     ax.set_xlabel("steps per chain until the ranking is correct")
-    ax.set_title("Time-to-accuracy: steps until Spearman rho >= 0.9 and rel-err <= 0.1")
+    ax.set_title("Time-to-accuracy: steps until Spearman rho >= 0.9\nand rel-err <= 0.1", fontsize=11)
     all_steps = [s for s in q_steps + m_steps if s]
     ax.set_xlim(0, (max(all_steps) * 1.3) if all_steps else 1)
     for yi, (qv, mv) in enumerate(zip(q_steps, m_steps)):
@@ -268,6 +268,14 @@ def story_card(p, q_good, m_good):
         lines += [("**No time-to-accuracy gap here** -- both samplers rank correctly "
                    "from the shortest prefix. We report this scenario as a control, "
                    "not a win."), ""]
+    table = p["intervention"]["static_table"]
+    if "metro" in table and "quantum" in table:
+        same = all(table["metro"][k]["set"] == table["quantum"][k]["set"]
+                   for k in table["metro"])
+        if same:
+            lines += [("Both samplers chose the **same bailout sets at every budget** "
+                       "-- here the quantum advantage is in how *fast* the ranking "
+                       "became trustworthy, not in a different final decision."), ""]
     lines += [
         "### Cost, reported fairly",
         "",

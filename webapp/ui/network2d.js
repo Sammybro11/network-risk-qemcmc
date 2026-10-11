@@ -20,7 +20,7 @@
 //
 // During replay there are no recorded per-step states to animate (the digests
 // carry traces and histograms, not 20k x 4 configurations), so the map shows
-// ground truth. Live runs do have states and animate the failure colour.
+// ground truth.
 
 const FAILED = '#B9362D';
 // Sequential ramp for mu: muted slate (ignorable) -> quantum cyan (protect).

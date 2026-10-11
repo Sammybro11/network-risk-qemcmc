@@ -30,7 +30,7 @@
         <h1>When failures are correlated, which node do you protect?</h1>
         <p class="subtitle">
           A sampler for any system whose risk is dominated by <em>pairwise correlated
-          failure</em>. One Hamiltonian, one algorithm, one readout — the domain only
+          failure</em>. The Hamiltonian and the algorithm are fixed; the domain only
           changes what the couplings mean.
         </p>
 
@@ -41,7 +41,7 @@
               Risk models usually assume nodes fail independently. Real networks do not:
               one failure propagates to whatever it is coupled to. Modelling the
               <em>full correlated</em> failure distribution over <em>n</em> nodes costs
-              2<sup>n</sup> configurations — intractable past a few dozen nodes. And the
+              2<sup>n</sup> configurations: intractable past a few dozen nodes. And the
               quantity a decision-maker needs is a distribution
               (<em>how likely is a catastrophic multi-node cascade at this stress
               level?</em>), not a single worst-case configuration.
@@ -55,7 +55,7 @@
               model: <strong>H(z) = ½·zᵀJz + hᵀz</strong>, with
               <strong>P(z) ∝ e<sup>−βH(z)</sup></strong>. Nothing in that structure is
               domain-specific. If your system has nodes that can fail, edges along which
-              failure propagates, and a stress level, it <em>is</em> this model — only the
+              failure propagates, and a stress level, it <em>is</em> this model; only the
               meaning of J<sub>ij</sub> changes.
             </p>
           </article>
@@ -65,20 +65,20 @@
             <p>
               The decision quantity is the susceptibility
               <strong>χ<sub>ij</sub> = β·Cov(z<sub>i</sub>, z<sub>j</sub>)</strong>: by
-              fluctuation–dissipation it is exactly ∂⟨z<sub>i</sub>⟩/∂h<sub>j</sub>, so its
+              fluctuation-dissipation it is exactly ∂⟨z<sub>i</sub>⟩/∂h<sub>j</sub>, so its
               column mean <em>is</em> the marginal value of intervening at node&nbsp;j. But
               near a tipping point the distribution has two deep basins. Single-spin
-              Metropolis sticks in whichever one it started in, so its covariance — and the
-              whole intervention ranking built on it — collapses.
+              Metropolis sticks in whichever one it started in, so its covariance, and the
+              whole intervention ranking built on it, collapses.
             </p>
           </article>
 
           <article class="pitch">
             <h2>What QeMCMC does</h2>
             <p>
-              A quantum processor <em>proposes</em> moves; the classical Metropolis–Hastings
+              A quantum processor <em>proposes</em> moves; the classical Metropolis-Hastings
               test accepts them, so the chain still converges to the exact Boltzmann
-              distribution — regardless of circuit noise, since the chain is classical
+              distribution, regardless of circuit noise, since the chain is classical
               between steps. Evolving under
               (1−γ)·α·H<sub>prob</sub> + γ·Σ<sub>j</sub>X<sub>j</sub> gives proposals far
               away in Hamming distance but close in energy: the chain tunnels between
@@ -117,7 +117,7 @@
               <tr>
                 <td>χ<sub>ij</sub> = β·Cov(z<sub>i</sub>, z<sub>j</sub>)</td>
                 <td>how much stabilising j helps i</td>
-                <td>fluctuation–dissipation ⇒ the intervention ranking</td>
+                <td>fluctuation-dissipation ⇒ the intervention ranking</td>
               </tr>
             </tbody>
           </table>
@@ -127,19 +127,19 @@
           <h2>How a shock enters</h2>
           <p>
             Across the classical and quantum literature a shock enters an Ising risk model
-            in exactly three ways, and all three are <strong>diagonal</strong> — they keep
+            in exactly three ways, and all three are <strong>diagonal</strong>: they keep
             the target a classical Boltzmann distribution, which is what makes the
             Metropolis acceptance test and the exact certification possible at all.
           </p>
           <ol class="shock-list">
             <li>
-              <strong>Field kick.</strong> Δh<sub>i</sub> on the exposed nodes — a storm
+              <strong>Field kick.</strong> Δh<sub>i</sub> on the exposed nodes: a storm
               front, a demand surge, a funding squeeze. The equilibrium shifts; the cascade
               is the response.
             </li>
             <li>
               <strong>Structure change.</strong> A coupling J<sub>ij</sub> appears,
-              strengthens or breaks — a link severed, an exposure grown.
+              strengthens or breaks: a link severed, an exposure grown.
             </li>
             <li>
               <strong>Seed pinning.</strong> One node forced into the failed state as a
@@ -155,13 +155,13 @@
         </div>
 
         <div class="claim-box">
-          <h2>What we claim — and what we do not</h2>
+          <h2>What we claim, and what we do not</h2>
           <p>
             Given a large enough step budget, <strong>both samplers converge</strong>. The
             result is a <strong>time-to-accuracy gap</strong>: how many iterations each one
             needs before its intervention ranking matches the exact answer. The quantum arm
             here is an exact statevector simulation, so
-            <strong>no wall-clock speedup is claimed</strong> — per-step cost is reported
+            <strong>no wall-clock speedup is claimed</strong>. Per-step cost is reported
             alongside every result, and ground truth comes from exact 2<sup>n</sup>
             enumeration, in your browser. The advantage is also empirical and small-scale:
             Layden et al. demonstrated it on 27 qubits at n = 10.
@@ -190,8 +190,8 @@
       <p class="chooser-sub">
         Finance and traffic, chosen because both have published classical baselines to
         check against. Each scenario replays a recorded run of QeMCMC against classical
-        Metropolis on the same Hamiltonian, same temperature, same observables — then lets
-        you re-run it live and score your own intervention.
+        Metropolis on the same Hamiltonian, same temperature, same observables, and lets
+        you score your own intervention.
       </p>
       <div class="scenario-cards" id="scenario-cards"></div>
       <p class="chooser-foot" id="chooser-foot"></p>
@@ -200,7 +200,7 @@
 
   <!-- ====================== DASHBOARD ====================== -->
   <div id="dashboard" hidden>
-  <!-- Section 01 — Editorial opening (Dynamic) -->
+  <!-- Section 01, editorial opening (dynamic) -->
   <section class="editorial">
     <div class="container">
       <nav class="scenario-switcher" id="scenario-switcher" aria-label="Scenario"></nav>

@@ -2,15 +2,14 @@
 // experiments/export_webapp_scenarios.py carries both the recorded 20k-step
 // run (fidelity, traces, histograms, intervention tables, convergence ladder)
 // and the instance it ran on (J, h, A), so the same file drives the replay,
-// the exact re-enumeration, the intervention lab and the live race.
+// the exact re-enumeration and the intervention lab.
 //
 // Finance and traffic scenarios differ only in vocabulary: a bailout is a
 // stabilising field edit h_j -> h_j - omega, and so is a road widening. The
 // LEXICON below is the whole difference.
 
 import { groundTruth, optimalBailouts, bailoutValue, cascadeClosure } from '../ui/physics.js';
-import { runLive } from '../ui/runner.js';
-import { susceptibility, muOf, chiRelErr, spearman, effectiveSampleSize, topK } from '../ui/stats.js';
+import { topK } from '../ui/stats.js';
 
 const LEXICON = {
   bailout: {
@@ -29,14 +28,6 @@ const LEXICON = {
   },
 };
 
-// Live-run defaults. The recorded runs are 20,000 steps x 4 chains; a browser
-// cannot match that, but it must not be so short that the reported chi is
-// basin-start noise. At 2,000 steps x 2 chains the quantum arm lands near its
-// recorded rank fidelity in roughly 30 s of wall clock.
-const LIVE_DEFAULT_STEPS = 2000;
-const LIVE_MIN_STEPS = 500;
-const LIVE_CHAINS = 2;
-
 export class ScenarioAdapter {
   constructor(entry) {
     this.id = entry.id;
@@ -46,22 +37,11 @@ export class ScenarioAdapter {
     this.n = entry.n;
     this.name = `${entry.title} (${entry.problem})`;
 
-    this.schema = {
-      inputs: [
-        {
-          id: 'steps', type: 'number', label: 'Live Chain Steps',
-          min: LIVE_MIN_STEPS, max: 8000, step: 500, default: LIVE_DEFAULT_STEPS,
-        },
-      ],
-      interventions: [],
-    };
+    this.schema = { inputs: [], interventions: [] };
     this.capabilities = ['network', 'timeseries', 'mechanism', 'ranking', 'intervention', 'exact_reference'];
     this.algorithms = ['QeMCMC', 'Metropolis'];
 
     this.data = null;
-    this.liveResult = null;
-    this.liveCancel = null;
-    this.isLive = false;
   }
 
   async loadData() {
@@ -109,7 +89,7 @@ export class ScenarioAdapter {
         type: 'network',
         title: `01. ${this.spec.problem === 'traffic' ? 'Road grid' : 'Dependency network'}`,
         hint: `Colour is the equilibrium answer, size is what structural centrality would ` +
-          `tell you — so a large dark node is well-connected but not worth ${lex.action}, ` +
+          `tell you: a large dark node is well-connected but not worth ${lex.action}, ` +
           `and a small bright node is the one everyone else misses. ` +
           `Click a node to add it to the ${lex.action} lab.`,
         data: {
@@ -130,7 +110,7 @@ export class ScenarioAdapter {
         type: 'timeseries',
         title: '02. Sampler race: convergence and basin crossing',
         hint: `Left: each chain's running mean energy against the exact thermal mean ` +
-          `(dashed) — a chain that settles off the dashed line is sampling the wrong ` +
+          `(dashed). A chain that settles off the dashed line is sampling the wrong ` +
           `distribution. Right: raw magnetization per chain; basin crossings are the ` +
           `jumps between plateaus. Gaps separate the ${this.spec.chains} chains.`,
       },
@@ -138,16 +118,16 @@ export class ScenarioAdapter {
         id: 'mechanism',
         type: 'mechanism',
         title: '03. Mechanism: move size and where the chains lived',
-        hint: 'Left: spins flipped per accepted move — single-spin Metropolis cannot ' +
-          'exceed 1, the Trotterised proposal flips whole regions. Right: time spent ' +
+        hint: 'Left: spins flipped per accepted move. Single-spin Metropolis cannot ' +
+          'exceed 1, while the Trotterised proposal flips whole regions. Right: time spent ' +
           'at each magnetization against the exact thermal mean.',
       },
       {
         id: 'ranking',
         type: 'ranking',
         title: `04. ${lex.Action} ranking fidelity`,
-        hint: `Aggregate susceptibility mu per ${lex.unit} — the marginal utility of ` +
-          `${lex.action} by fluctuation–dissipation — against exact truth and the ` +
+        hint: `Aggregate susceptibility mu per ${lex.unit}, the marginal utility of ` +
+          `${lex.action} by fluctuation-dissipation, against exact truth and the ` +
           `structure-only baselines.`,
       },
       {
@@ -170,24 +150,24 @@ export class ScenarioAdapter {
     const items = [
       {
         kind: 'ramp',
-        label: 'Fill — exact susceptibility μ',
+        label: 'Fill: exact susceptibility μ',
         note: `the equilibrium answer: marginal gain from ${lex.action} at this ${lex.unit}`,
         ends: ['low', 'high'],
       },
       {
         kind: 'size',
-        label: 'Size — eigenvector centrality',
+        label: 'Size: eigenvector centrality',
         note: 'structure only, no temperature and no physics: what centrality would tell you',
       },
       {
         kind: 'dash',
-        label: `Outline — tier`,
+        label: `Outline: tier`,
         note: lex.tierOrder.join(' · '),
         patterns: lex.tierOrder,
       },
       {
         kind: 'edge',
-        label: 'Edge — coupling J',
+        label: 'Edge: coupling J',
         note: frustrated
           ? `solid = agreement (J < 0); dashed coral = frustrated (J > 0), ${frustrated} here`
           : 'solid = agreement (J < 0); width by |J|. No frustrated couplings in this scenario',
@@ -240,59 +220,6 @@ export class ScenarioAdapter {
     };
   }
 
-  // ---------------------------------------------------------------- runs
-
-  async run(config, onProgress) {
-    if (this.liveCancel) this.liveCancel.cancelled = true;
-    this.liveCancel = { cancelled: false };
-    this.isLive = true;
-    const cancel = this.liveCancel;
-
-    const steps = Math.max(LIVE_MIN_STEPS, config.steps || LIVE_DEFAULT_STEPS);
-    const burnIn = Math.floor(steps / 10);
-
-    this.liveResult = await runLive({
-      J: this.J,
-      h: this.h,
-      beta: this.beta,
-      steps,
-      burnIn,
-      chains: LIVE_CHAINS,
-      onProgress: (done, total, out) => {
-        if (done % 10 === 0 && !cancel.cancelled) {
-          onProgress(done, total, this._formatLiveProgress(out));
-        }
-      },
-      cancel,
-    });
-    this.liveSteps = steps;
-
-    if (cancel.cancelled) throw new Error('cancelled');
-    return this.getResults();
-  }
-
-  cancel() {
-    if (this.liveCancel) this.liveCancel.cancelled = true;
-  }
-
-  _formatLiveProgress(out) {
-    const ql = out.quantum.energies.length;
-    if (!ql) return null;
-    return {
-      states: out.quantum.states[ql - 1],
-      traces: [
-        { name: 'Metropolis', color: '#F08A73', ys: out.metro.energies },
-        { name: 'QeMCMC (live)', color: '#62B6CF', ys: out.quantum.energies },
-      ],
-      convergence: [
-        { name: 'Metropolis', color: '#F08A73', ys: out.metro.states.map(mean) },
-        { name: 'QeMCMC (live)', color: '#62B6CF', ys: out.quantum.states.map(mean) },
-      ],
-      exactEnergy: this.exact.energy,
-      exactM: this.data.exact.m,
-    };
-  }
-
   // Recorded chains for the replay animation. Chain boundaries are kept as
   // NaN gaps so four chains never read as one continuous walk.
   //
@@ -304,7 +231,6 @@ export class ScenarioAdapter {
   // settles on the wrong value. Magnetization stays raw, because there the
   // plateaus survive striding and the basin jumps are the point.
   getReplayData() {
-    this.isLive = false;
     const join = (traces) => traces.flatMap((t, i) => (i ? [NaN, ...t] : t));
     const runningMean = (xs) => {
       let acc = 0;
@@ -324,26 +250,12 @@ export class ScenarioAdapter {
     };
   }
 
+  // No async work behind the replay any more, but the app calls this when it
+  // swaps scenarios or restarts the animation, so keep the hook.
+  cancel() {}
+
   getResults() {
     const d = this.data;
-    const exactMu = this.exact.mu;
-
-    if (this.isLive && this.liveResult) {
-      const src = this.liveResult;
-      const arm = (a) => {
-        const chi = susceptibility(src[a].states, this.beta);
-        const mu = muOf(chi);
-        return {
-          mu,
-          relerr: chiRelErr(chi, this.exact.chi),
-          rho: spearman(mu, exactMu),
-          acc: src[a].accepted,
-          ess: src[a].ess || effectiveSampleSize(src[a].energies),
-          label: 'live',
-        };
-      };
-      return this._resultsFrom(arm('quantum'), arm('metro'));
-    }
 
     const arm = (a) => ({
       mu: d.arms[a].mu,
@@ -372,8 +284,7 @@ export class ScenarioAdapter {
 
   // -------------------------------------------------------- conclusions
 
-  // Every number here is read off the run being displayed. Nothing is
-  // hardcoded, so a live run that disagrees with the recorded one says so.
+  // Every number here is read off the recorded run. Nothing is hardcoded.
   getSolution() {
     const lex = this.lex;
     const { stats } = this.getResults();
@@ -381,17 +292,13 @@ export class ScenarioAdapter {
     const opt = this.optimal[k];
     const names = (set) => set.map((i) => `${lex.Unit} ${i} (${this.data.tiers[i]})`).join(', ');
 
-    const live = this.isLive && this.liveResult;
     const tables = this.data.intervention;
     const metroRow = tables.static_table.metro?.[String(k)];
     const quantumRow = tables.static_table.quantum?.[String(k)];
     const seqRow = tables.sequential_table?.['quantum-seq']?.[String(k)];
     const ladder = this.convergenceSummary();
 
-    const source = live
-      ? `Live in-browser race: ${this.liveSteps.toLocaleString()} steps x ${LIVE_CHAINS} chains per arm ` +
-        `(the recorded run is ${this.spec.steps.toLocaleString()} x ${this.spec.chains}).`
-      : `Recorded run: ${this.spec.steps.toLocaleString()} steps x ${this.spec.chains} chains per arm.`;
+    const source = `Recorded run: ${this.spec.steps.toLocaleString()} steps x ${this.spec.chains} chains per arm.`;
 
     const fidelity =
       `QeMCMC reached rank fidelity rho = ${fmt(stats.quantum.rho)} at chi relative error ` +
@@ -407,8 +314,8 @@ export class ScenarioAdapter {
     return {
       problem:
         `${cap(lex.Action)} allocation under a budget of K = ${k} of ${this.n} ${lex.unit}s. ` +
-        `The decision quantity is the equilibrium susceptibility chi = beta Cov(z): by ` +
-        `fluctuation–dissipation its column mean IS the marginal utility of ${lex.action}, ` +
+        `The decision quantity is the equilibrium susceptibility chi = beta Cov(z). By ` +
+        `fluctuation-dissipation its column mean IS the marginal utility of ${lex.action}, ` +
         `which is why it has to be sampled rather than read off the network.`,
       result: `${source} ${fidelity}${cost}`,
       recommendedAction:
@@ -419,7 +326,7 @@ export class ScenarioAdapter {
         (seqRow ? `Re-ranking between doses (sequential policy) gets regret ${fmt(seqRow.regret)}.` : ''),
       method:
         `Trotterised QeMCMC proposal under (1-gamma)·alpha·H_prob + gamma·sum X_j, accepted by ` +
-        `Metropolis–Hastings, versus single-spin Metropolis on the same Hamiltonian, same beta, ` +
+        `Metropolis-Hastings, versus single-spin Metropolis on the same Hamiltonian, same beta, ` +
         `same observables. ${ladder}`,
       constraints:
         `n = ${this.n}, beta = ${this.beta}, omega = ${this.omega}. Ground truth and every regret ` +
@@ -462,7 +369,7 @@ export class ScenarioAdapter {
       attribution: 'Recorded on the IonQ / Qollab hackathon stack. MIT licensed.',
       assumptions: [
         `Spin convention: z = +1 ${this.lex.hi.replace('all ', '')}, z = -1 ${this.lex.lo.replace('all ', '')}.`,
-        'The quantum arm is an exact statevector simulation of the Trotterised proposal, 1 shot per step — no wall-clock speedup is claimed.',
+        'The quantum arm is an exact statevector simulation of the Trotterised proposal, 1 shot per step; no wall-clock speedup is claimed.',
         `Intervention is a longitudinal field edit h_j -> h_j - ${this.omega}; it never acts inside a chain.`,
         'Convergence ladders are prefix truncations of the same chains (within-run convergence), not independent restarts.',
       ],

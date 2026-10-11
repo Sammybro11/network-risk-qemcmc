@@ -1,5 +1,6 @@
-// Pure Ising/MCMC math shared by replay and live modes. No Qollab, Qiskit
-// or DOM dependencies, so it stays unit-testable outside the runtime.
+// Pure Ising/MCMC math shared by the replay and the exact enumeration. No
+// Qollab, Qiskit or DOM dependencies, so it stays unit-testable outside the
+// runtime.
 
 export function isingEnergy(z, J, h) {
   let e = 0;
@@ -11,7 +12,7 @@ export function isingEnergy(z, J, h) {
   return e;
 }
 
-// Mulberry32: small deterministic PRNG so live runs are reproducible.
+// Mulberry32: small deterministic PRNG so replayed runs are reproducible.
 export function makeRng(seed) {
   let a = seed >>> 0;
   return function () {

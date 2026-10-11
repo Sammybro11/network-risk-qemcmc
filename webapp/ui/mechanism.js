@@ -14,9 +14,9 @@
 const COLORS = {
   quantum: '#62B6CF',
   metro: '#F08A73',
-  exact: '#A8B0B5',
-  grid: '#363D43',
-  text: '#A8B0B5',
+  exact: '#C3CBD1',
+  grid: '#4A545C',
+  text: '#D6DBDE',
 };
 
 // Backing store is resized only on an actual change -- see the note in
@@ -45,14 +45,18 @@ function frame(ctx, w, h, pad) {
   ctx.stroke();
 }
 
-function legend(ctx, w, h, entries) {
+// In-canvas legend. Kept clear of the axis title by anchoring it to the top
+// edge and advancing x by the measured swatch plus text width. align 'right'
+// packs it against the top-right corner instead.
+function legend(ctx, w, h, entries, align = 'left') {
   ctx.textAlign = 'left';
   ctx.font = '10px "IBM Plex Mono", monospace';
-  let lx = 46;
+  const total = entries.reduce((s, [name]) => s + 12 + ctx.measureText(name).width + 16, 0) - 16;
+  let lx = align === 'right' ? w - 10 - total : 46;
   for (const [name, color] of entries) {
     ctx.fillStyle = color;
-    ctx.fillRect(lx, h - 11, 8, 3);
-    ctx.fillText(name, lx + 12, h - 7);
+    ctx.fillRect(lx, 4, 8, 3);
+    ctx.fillText(name, lx + 12, 8);
     lx += 12 + ctx.measureText(name).width + 16;
   }
 }
@@ -68,7 +72,7 @@ function shares(hist) {
 
 export function drawFlipHist(canvas, { metro, quantum }) {
   const { ctx, w, h } = setup(canvas);
-  const pad = { l: 40, r: 10, t: 16, b: 30 };
+  const pad = { l: 40, r: 10, t: 26, b: 30 };
   const sm = shares(metro), sq = shares(quantum);
   const n = Math.max(sm.length, sq.length);
   const maxV = Math.max(...sm, ...sq, 1e-9);
@@ -77,11 +81,14 @@ export function drawFlipHist(canvas, { metro, quantum }) {
 
   frame(ctx, w, h, pad);
   ctx.font = '10px "IBM Plex Mono", monospace';
+  // Axis label sits above the plot and the legend in the top-right corner, so
+  // neither collides with the bars or with each other.
   ctx.fillStyle = COLORS.text;
+  ctx.textAlign = 'left';
+  ctx.fillText('share of accepted moves', pad.l + 4, 12);
+  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
   ctx.textAlign = 'right';
   ctx.fillText(`${(maxV * 100).toFixed(0)}%`, pad.l - 5, pad.t + 8);
-  ctx.textAlign = 'left';
-  ctx.fillText('share of accepted moves', pad.l + 4, pad.t + 8);
 
   for (let k = 0; k < n; k++) {
     const x0 = pad.l + k * bandW + (bandW - 2 * barW) / 2;
@@ -99,12 +106,11 @@ export function drawFlipHist(canvas, { metro, quantum }) {
   ctx.fillStyle = COLORS.text;
   ctx.textAlign = 'center';
   ctx.fillText('spins flipped per accepted move', (pad.l + w - pad.r) / 2, h - pad.b + 24);
-  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]]);
 }
 
 export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all failed', hiLabel = 'all healthy' }) {
   const { ctx, w, h } = setup(canvas);
-  const pad = { l: 40, r: 10, t: 16, b: 30 };
+  const pad = { l: 40, r: 10, t: 26, b: 30 };
   const n = metro.length;
   const norm = (hist) => {
     const total = hist.reduce((a, b) => a + b, 0) || 1;
@@ -120,10 +126,11 @@ export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all f
   frame(ctx, w, h, pad);
   ctx.font = '10px "IBM Plex Mono", monospace';
   ctx.fillStyle = COLORS.text;
+  ctx.textAlign = 'left';
+  ctx.fillText('time spent', pad.l + 4, 12);
+  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
   ctx.textAlign = 'right';
   ctx.fillText(`${(maxV * 100).toFixed(0)}%`, pad.l - 5, pad.t + 8);
-  ctx.textAlign = 'left';
-  ctx.fillText('time spent', pad.l + 4, pad.t + 8);
 
   for (let k = 0; k < n; k++) {
     const x0 = pad.l + k * bandW + (bandW - 2 * barW) / 2;
@@ -144,8 +151,13 @@ export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all f
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = COLORS.exact;
+    // Label above the axis title row, and nudged so a line near the left edge
+    // (m close to -1) does not clip off-canvas.
     ctx.textAlign = 'center';
-    ctx.fillText(`exact m = ${exactM.toFixed(2)}`, x, pad.t - 4);
+    const label = `exact m = ${exactM.toFixed(2)}`;
+    const half = ctx.measureText(label).width / 2;
+    const lx = Math.min(Math.max(x, pad.l + half + 2), w - pad.r - half - 2);
+    ctx.fillText(label, lx, pad.t - 6);
   }
 
   ctx.fillStyle = COLORS.text;
@@ -153,7 +165,8 @@ export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all f
   ctx.fillText(loLabel, pad.l, h - pad.b + 12);
   ctx.textAlign = 'right';
   ctx.fillText(hiLabel, w - pad.r, h - pad.b + 12);
+  ctx.fillStyle = COLORS.text;
   ctx.textAlign = 'center';
   ctx.fillText('chain magnetization m', (pad.l + w - pad.r) / 2, h - pad.b + 24);
-  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]]);
+  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
 }

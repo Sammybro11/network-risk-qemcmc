@@ -4,9 +4,9 @@
 const COLORS = {
   quantum: '#62B6CF',
   metro: '#F08A73',
-  exact: '#A8B0B5',
-  grid: '#363D43',
-  text: '#A8B0B5',
+  exact: '#C3CBD1',
+  grid: '#4A545C',
+  text: '#D6DBDE',
   healthy: '#4A5D6E',
   failed: '#B9362D',
   strength: '#6A7B89',

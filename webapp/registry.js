@@ -3,8 +3,8 @@ import { ScenarioAdapter } from './adapters/scenario.js';
 // Modules are the recorded showcase scenarios exported by
 // experiments/export_webapp_scenarios.py. data/scenarios/index.json lists
 // them; each entry is backed by one self-contained payload carrying the
-// recorded run AND the instance (J, h, A), so every panel -- replay, live
-// race, exact re-enumeration, intervention lab -- works off the same file.
+// recorded run AND the instance (J, h, A), so every panel -- replay,
+// exact re-enumeration, intervention lab -- works off the same file.
 
 export const Registry = {
   adapters: new Map(),

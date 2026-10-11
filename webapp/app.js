@@ -174,7 +174,7 @@ class App {
     }
     $('chooser-foot').textContent =
       `Time to accuracy is the first prefix of the recorded chains to reach Spearman >= 0.9 ` +
-      `against exact truth AND chi relative error <= 0.1 — the same definition the README ` +
+      `against exact truth AND chi relative error <= 0.1, the same definition the README ` +
       `uses. Prefixes of one run measure within-run convergence, not independent restarts.`;
   }
 
@@ -210,13 +210,6 @@ class App {
     replayBtn.textContent = 'Replay recorded run';
     replayBtn.disabled = true;
     controls.appendChild(replayBtn);
-
-    const liveBtn = document.createElement('button');
-    liveBtn.id = 'btn-live';
-    liveBtn.type = 'button';
-    liveBtn.textContent = 'Run live in browser';
-    liveBtn.disabled = true;
-    controls.appendChild(liveBtn);
 
     adapter.schema.inputs.forEach((input) => {
       const label = document.createElement('label');
@@ -323,7 +316,7 @@ class App {
             ${cfg.presets.map((p) => `
               <button class="preset${p.degenerate ? ' degenerate' : ''}" data-strategy="${p.id}"
                 type="button"${p.degenerate
-                  ? ' title="This baseline is a constant on this instance, so it ranks nothing — it picks the lowest indices by tie order."'
+                  ? ' title="This baseline is a constant on this instance, so it ranks nothing and picks the lowest indices by tie order."'
                   : ''}>${p.label}${p.degenerate ? ' ⚠' : ''}</button>`).join('')}
           </div>
           <div id="bank-picker" class="bank-picker" role="group" aria-label="${lex.Unit}s"></div>
@@ -422,9 +415,7 @@ class App {
 
   bindEvents() {
     $('btn-replay').disabled = false;
-    $('btn-live').disabled = false;
     $('btn-replay').addEventListener('click', () => this.replay());
-    $('btn-live').addEventListener('click', () => this.runLive());
 
     // Belt and braces against the resize loop the canvases used to drive:
     // coalesce into one animation frame, and ignore notifications where the
@@ -439,7 +430,7 @@ class App {
         pending = true;
         requestAnimationFrame(() => {
           pending = false;
-          if (!this.isLive && this.currentAdapter && this.currentAdapter.data) this.updateCharts();
+          if (this.currentAdapter && this.currentAdapter.data) this.updateCharts();
         });
       });
       this.resizeObserver.observe($('module-workspace'));
@@ -462,7 +453,7 @@ class App {
       t += stepFrames;
       if (t >= rData.qE.length) {
         clearInterval(this.replayTimer);
-        status('Replay finished. Inspect the mechanism panel, try the policy lab, or run live.');
+        status('Replay finished. Inspect the mechanism panel or try the policy lab.');
         this.updateCharts();
         this.renderSolution();
         return;
@@ -489,40 +480,9 @@ class App {
     ], { reference: rData.exactM, yLabel: 'magnetization m' });
   }
 
-  async runLive() {
-    this.currentAdapter.cancel();
-    if (this.replayTimer) clearInterval(this.replayTimer);
-
-    $('btn-live').disabled = true;
-    this.isLive = true;
-    const config = {};
-    if ($('input-steps')) config.steps = +$('input-steps').value;
-
-    try {
-      const results = await this.currentAdapter.run(config, (done, total, out) => {
-        if (out) {
-          const net = this.vizInstances.get('network');
-          if (net) net.setStates(out.states);
-          drawTraces($('chart-trace'), out.traces, { reference: out.exactEnergy, yLabel: 'chain energy' });
-          drawTraces($('chart-conv'), out.convergence, { reference: out.exactM, yLabel: 'magnetization m' });
-        }
-        status(`Running live race: pooled step ${done}/${total}...`);
-      });
-      status('Live run complete — the panel below now reports the LIVE numbers.');
-      this.updateCharts(results);
-      this.renderSolution();
-    } catch (err) {
-      if (err.message !== 'cancelled') status(`Error: ${err.message}`);
-    } finally {
-      this.isLive = false;
-      $('btn-live').disabled = false;
-    }
-  }
-
-  updateCharts(resultsOverride = null) {
+  updateCharts() {
     const adapter = this.currentAdapter;
-    const res = resultsOverride || adapter.getResults();
-    const { stats, ranking } = res;
+    const { stats, ranking } = adapter.getResults();
 
     if ($('sampler-stats')) {
       const cell = (cls, arm, value, label) => `<div class="stat ${cls}">${arm}<b>${value}</b>${label}</div>`;
@@ -548,7 +508,7 @@ class App {
 
     if ($('chart-ranking') && ranking) drawRanking($('chart-ranking'), ranking);
 
-    if ($('chart-trace') && !this.isLive) this.drawRace(adapter.getReplayData());
+    if ($('chart-trace')) this.drawRace(adapter.getReplayData());
 
     if ($('chart-regret') && adapter.getRegretConfig) {
       drawRegret($('chart-regret'), adapter.getRegretConfig());

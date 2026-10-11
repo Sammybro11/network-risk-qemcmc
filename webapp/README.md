@@ -1,8 +1,8 @@
-# QeMCMC showcase — static webapp
+# QeMCMC showcase: static webapp
 
 Browser-only companion to the `risk_qemcmc` Python package. The pitch is the
-general model — any system whose risk is dominated by pairwise correlated
-failure is the same Ising Hamiltonian — and each module is one recorded
+general model: any system whose risk is dominated by pairwise correlated
+failure is the same Ising Hamiltonian, and each module is one recorded
 instantiation of it: a network where a quantum proposal (QeMCMC) races classical
 Metropolis to learn the intervention susceptibility, plus a policy lab that
 scores intervention budgets by exact enumeration.
@@ -13,17 +13,17 @@ Pure JavaScript, no build step, no backend.
 
 The page is two views behind a hash route:
 
-- `#/` — **landing**, pitched at the general model rather than at finance: the
+- `#/`: **landing**, pitched at the general model rather than at finance: the
   problem (correlated failure, 2^n configurations, the deliverable is a
   distribution), the claim that one Hamiltonian covers every domain with a
   per-term mapping table, why classical sampling is not enough (two basins, a
   frozen chain's covariance collapses), what QeMCMC does, how a shock enters
-  (the three diagonal encodings — field kick, structure change, seed pinning —
+  (the three diagonal encodings: field kick, structure change, seed pinning,
   with an intervention as the same edit sign-flipped), and what is *not*
-  claimed (no wall-clock speedup — the quantum arm is simulated). Then a grid of
+  claimed (no wall-clock speedup; the quantum arm is simulated). Then a grid of
   eight candidate domains (the two implemented ones are clickable), and a card
   per scenario with its steps-to-correct-ranking headline.
-- `#/<scenario-id>` — **dashboard** for one scenario, with a scenario switcher
+- `#/<scenario-id>`: **dashboard** for one scenario, with a scenario switcher
   at the top of the page and an "All scenarios" link in the header. The id is in
   the URL, so a particular scenario is linkable and the back button works.
 
@@ -44,28 +44,19 @@ same stabilising field edit `h_j -> h_j - omega`, so one adapter
 
 ## Panels
 
-1. **Network** — node size is the exact susceptibility (the answer both
+1. **Network:** node size is the exact susceptibility (the answer both
    samplers are chasing), `Q` marks the quantum arm's top pick, cascade seeds
    are ringed. Click a node to send it to the policy lab.
-2. **Sampler race** — each chain's running mean energy against the exact
+2. **Sampler race:** each chain's running mean energy against the exact
    thermal mean, and raw magnetization where basin crossings show as jumps.
-3. **Mechanism** — spins flipped per accepted move (single-spin Metropolis
+3. **Mechanism:** spins flipped per accepted move (single-spin Metropolis
    cannot exceed 1; the Trotterised proposal flips whole regions) and where
    each chain actually spent its time.
-4. **Ranking fidelity** — aggregate susceptibility mu per node vs exact truth
+4. **Ranking fidelity:** aggregate susceptibility mu per node vs exact truth
    and the structure-only baselines (strength, eigenvector, DebtRank).
-5. **Policy lab** — pick up to K nodes; the exact Boltzmann distribution is
+5. **Policy lab:** pick up to K nodes; the exact Boltzmann distribution is
    re-enumerated in-browser under your intervention, so the regret against the
    exhaustive optimum is exact, not estimated.
-
-**Run live in browser** re-runs the race locally: Metropolis in plain JS, and
-the same Trotterised circuit as `risk_qemcmc.compile.trotter` simulated with a
-small exact statevector engine, 1 shot per step sampled from the true final
-state probabilities. Defaults are 2,000 steps x 2 chains per arm (~40 s). The
-chains are pooled before estimating chi: a single short chain reports whichever
-basin it started in, which is enough to flip the reported rank fidelity
-negative. Every number in the Solution panel is derived from the run on screen,
-so a live result that disagrees with the recorded one says so.
 
 ## Data flow
 
@@ -83,8 +74,7 @@ The rebuild is checked against the digest's edge list and tier labels before
 anything is written.
 
 Exact ground truth is re-enumerated in the browser at load; it reproduces the
-Python values to ~1e-14, and the JS Trotter statevector matches qiskit's
-probability vector to 8e-16 (total variation distance).
+Python values to ~1e-14.
 
 ## Running locally
 

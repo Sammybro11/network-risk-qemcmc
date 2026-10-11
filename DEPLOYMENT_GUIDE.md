@@ -50,7 +50,7 @@ This produces two deployment archives in `dist/`:
    - Select your quantum simulator in the **Select QPU** dialog (the local simulator is recommended).
    - Qollab auto-generates the **Run Settings** form (`method`: finance/traffic, `budget`, `steps`, `beta`, `lam`).
 5. Click **Run**.
-   - Output includes the MCMC diagnostic tables (Spearman rank correlation, $\chi$ relative error, acceptance rates) and SVG plots (convergence traces, ranking bars, regret curves).
+   - Output includes the MCMC diagnostic tables (Spearman rank correlation, $\chi$ relative error, acceptance rates) and SVG plots (convergence traces, ranking bars).
 
 ### Mode B: Qollab Interactive Web App (`dist/qollab_webapp.zip`)
 *Best for: Running the interactive Contagion Atlas dashboard directly inside Qollab's browser canvas.*
@@ -75,7 +75,6 @@ This produces two deployment archives in `dist/`:
   ```bash
   uv run python experiments/financial_contagion.py
   uv run python experiments/report_plots.py
-  uv run python experiments/visualize_results.py
   ```
 
 - **Run Test Suite**:

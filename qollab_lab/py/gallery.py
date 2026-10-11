@@ -16,19 +16,9 @@ Plus one cross-scenario summary figure (time-to-accuracy) at the end.
 Every figure is plain matplotlib -> SVG on qollab, PNG locally.
 """
 
-import base64
-import json
-import zlib
-
 import numpy as np
 
-try:
-    import matplotlib
-except ImportError:  # pragma: no cover
-    raise
-
 from py.gallery_text import (
-    CAVEATS,
     HOW_TO_READ,
     scenario_story,
     verdict,
@@ -49,7 +39,7 @@ def load():
     here = Path(__file__).resolve().parent
     if str(here) not in sys.path:
         sys.path.insert(0, str(here))
-    from py import scenarios_data
+    import scenarios_data  # sibling module, resolved via the sys.path insert above
     return scenarios_data.load()
 
 
@@ -276,7 +266,6 @@ def fig_regret(p, live=False):
     ks = [str(k) for k in range(1, budget + 1)]
     static = [r for r in ("metro", "quantum", "strength", "load", "eigenvector", "debtrank")
               if r in itv["static_table"]]
-    seq = ["exact-seq", "metro-seq", "quantum-seq"]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
     x = np.arange(len(ks))
@@ -340,7 +329,6 @@ def print_fidelity(p):
               f"{a['ess_per_step']:>9.4f} {a['acceptance']:>7.2f} "
               f"{a['ms_per_step']:>9.3f} {wall:>12}")
     print(f"verdict: {verdict(spec['name'])}")
-    print(p["cost_note"])
 
 
 def run_gallery(live=False):
@@ -365,8 +353,6 @@ def run_gallery(live=False):
 
     _summary_figure(summary, live)
     print("\n" + HOW_TO_READ)
-    for c in CAVEATS:
-        print(f"  caveat: {c}")
 
 
 def _summary_figure(summary, live=False):

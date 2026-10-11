@@ -8,12 +8,17 @@ Developed for the IonQ / Qollab Hackathon.
 
 ## Overview
 
-In systemic risk networks (such as interbank cross-holdings or road traffic grids), cascading failures can trigger severe tipping points. Classical Metropolis Markov Chain Monte Carlo (MCMC) frequently freezes in deep local potential wells near healthy or congested states, leading to near-zero covariance estimates and anti-correlated policy rankings.
+Any system whose risk is dominated by **pairwise correlated failure** maps onto the same Ising Hamiltonian `H(z) = ½ zᵀJz + hᵀz`: nodes that can fail, couplings along which failure propagates, a longitudinal field for intrinsic vulnerability, and a temperature for aggregate stress. Power grids, supply chains, epidemics, interdependent infrastructure, breach propagation and ecological tipping cascades all have this structure — only the reading of `J_ij` changes. A shock enters the same way in every case, as a diagonal edit: a field kick `Δh_i`, a coupling change, or a pinned failed seed; an intervention is the same edit with the opposite sign, `h_j → h_j − ω`.
+
+Interbank cross-holdings and road-traffic grids are the two instantiations implemented here, chosen because both have published classical baselines to check against.
+
+Near a tipping point the equilibrium distribution has two deep basins. Classical Metropolis MCMC freezes in whichever one it started in, giving near-zero covariance estimates and anti-correlated policy rankings — so the intervention ranking built on that covariance is wrong.
 
 This repository implements **Quantum-Enhanced MCMC (QeMCMC)**:
 - **Trotterized Quantum Proposal**: Evolving the state under $(1-\gamma)\alpha H_{\text{prob}} + \gamma \sum X_j$ enables quantum tunneling between metastable basins.
-- **Bailout Susceptibility**: Reconstructs the fluctuation-dissipation response matrix $\chi = \beta \operatorname{Cov}(z)$ with high rank fidelity (Spearman $> 0.85$) where classical Metropolis collapses.
-- **Scientific Workbench (Contagion Atlas V2)**: Modular web dashboard supporting both financial contagion cascades and combinatorial graph optimization (Max-Cut).
+- **Intervention Susceptibility**: Reconstructs the fluctuation-dissipation response matrix $\chi = \beta \operatorname{Cov}(z)$, whose column mean *is* the marginal utility of intervening at node $j$ — the quantity a frozen classical chain gets wrong. A bailout and a road widening are the same field edit, so the same ranking code serves both.
+- **Time to accuracy, honestly stated**: Given a large enough step budget both samplers converge. The claim is the iteration-budget gap — QeMCMC reaches a correct intervention ranking in 2–8k steps where Metropolis needs 8–20k — measured on a simulator, so no wall-clock speedup is claimed.
+- **Scientific Workbench**: Modular web dashboard, one module per recorded showcase scenario (three financial contagion networks and a rush-hour road grid), each replaying a 20,000-step × 4-chain run and re-runnable live in the browser.
 
 ---
 

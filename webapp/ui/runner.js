@@ -183,15 +183,38 @@ export function runLiveSync({ J, h, beta, steps, burnIn, seed = 7 }) {
 }
 
 // Chunked live runner: yields to the event loop every few steps so the page
-// stays responsive; onProgress(done, steps) drives status updates. Resolves
+// stays responsive; onProgress(done, total) drives status updates. Resolves
 // the arm record {metro, quantum}; rejects when cancel.cancelled flips.
-export function runLive({ J, h, beta, steps, burnIn, seed = 7, onProgress, cancel = {} }) {
+//
+// `chains` independent chains are run back to back, each from its own seed and
+// its own burn-in, and their post-burn-in samples are pooled. Pooling matters:
+// chi from a single chain of a few hundred steps is dominated by whichever
+// basin that chain happened to start in, which is exactly how a short live run
+// ends up reporting a NEGATIVE rank fidelity for the quantum arm.
+export function runLive({ J, h, beta, steps, burnIn, chains = 1, seed = 7, onProgress, cancel = {} }) {
   return new Promise((resolve, reject) => {
     const alpha = mixerWeight(J, h);
-    const rngM = makeRng(seed);
-    const rngQ = makeRng(seed + 1);
-    const st = newChains(J, h);
-    let burned = 0, done = 0;
+    const total = steps * chains;
+    const pooled = newChains(J, h).out;
+    let chain = 0, rngM = null, rngQ = null, st = null, burned = 0, done = 0, poolDone = 0;
+
+    const startChain = () => {
+      rngM = makeRng(seed + 2 * chain);
+      rngQ = makeRng(seed + 2 * chain + 1);
+      st = newChains(J, h);
+      burned = 0;
+      done = 0;
+    };
+
+    const harvest = () => {
+      for (const arm of ['metro', 'quantum']) {
+        pooled[arm].energies.push(...st.out[arm].energies);
+        pooled[arm].states.push(...st.out[arm].states);
+        pooled[arm].accepted += st.out[arm].accepted;
+      }
+    };
+
+    startChain();
     setTimeout(function slice() {
       if (cancel.cancelled) { reject(new Error('cancelled')); return; }
       let budget = 8;
@@ -202,10 +225,15 @@ export function runLive({ J, h, beta, steps, burnIn, seed = 7, onProgress, cance
       }
       while (budget > 0 && done < steps) {
         stepOnce(st, J, h, beta, alpha, rngM, rngQ);
-        done++; budget--;
+        done++; poolDone++; budget--;
       }
-      if (onProgress) onProgress(done, steps, st.out);
-      if (done >= steps) { resolve(normalized(st.out)); return; }
+      if (done >= steps) {
+        harvest();
+        chain++;
+        if (chain < chains) startChain();
+      }
+      if (onProgress) onProgress(poolDone, total, chain >= chains ? pooled : st.out);
+      if (chain >= chains) { resolve(normalized(pooled)); return; }
       setTimeout(slice, 0);
     }, 0);
   });

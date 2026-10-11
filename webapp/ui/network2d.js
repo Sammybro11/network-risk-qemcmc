@@ -1,47 +1,59 @@
-// 2D interbank network on canvas: concentric tier rings (core innermost,
-// periphery outermost), dependency edges weighted by A. Failure colors the
-// node red and emits an expanding pulse; nodes are click-pickable for the
-// bailout lab, and selected nodes get a bright outline.
+// 2D network on canvas. Node coordinates come from the scenario payload
+// (spring layout for the finance networks, the literal street grid for
+// traffic), so the picture matches the one the Python gallery draws. Edges are
+// weighted by the dependency/flow matrix A. Failure colors the node red and
+// emits an expanding pulse; nodes are click-pickable for the intervention lab,
+// and selected nodes get a bright outline.
+//
+// Node RADIUS encodes exact susceptibility rank when `importance` is supplied:
+// during replay there are no recorded per-step states to animate (the digests
+// carry traces and histograms, not 20k x 4 configurations), so the map shows
+// the ground-truth answer the samplers are competing to recover. Live runs do
+// have states and animate normally.
 
-const TIER_COLOR = { core: '#6A7D8E', intermediate: '#5A6D7E', periphery: '#4A5D6E' };
-const RING_RADIUS = [0.22, 0.55, 1.0];
 const HEALTHY = [74, 93, 110]; // #4A5D6E
 const FAILED = '#B9362D';
-
-const tierRing = (tier) => ['core', 'intermediate', 'periphery'].indexOf(tier);
-const hsvLerp = (tier) => {
-  const hex = TIER_COLOR[tier];
-  const b = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
-  return HEALTHY.map((v, i) => Math.round(v + (b[i] - v) * 0.6)).join(',');
-};
+const TIER_SHADE = ['#6A7D8E', '#5A6D7E', '#4A5D6E'];
 
 export class Network2D {
-  constructor(canvas, { A, tiers }) {
+  constructor(canvas, { A, tiers, positions, tierOrder, importance, seeds = [], mark = {} }) {
     this.canvas = canvas;
     this.tiers = tiers;
     this.n = tiers.length;
     this.ctx = canvas.getContext('2d');
     this.selected = new Set();
     this.onNodeClick = null;
+    this.mark = mark;
+    this.seeds = new Set(seeds);
     this._failed = new Array(this.n).fill(false);
     this._pulse = new Array(this.n).fill(0);
 
-    const byRing = [[], [], []];
-    for (let i = 0; i < this.n; i++) byRing[tierRing(tiers[i])].push(i);
-    this._nodeAt = byRing.flatMap((members, t) =>
-      members.map((bank, idx) => {
-        const angle = (2 * Math.PI * idx) / members.length + (t === 2 ? 0.4 : 0);
-        const jitter = ((((bank * 2654435761) % 100) / 100 - 0.5) * (t ? 0.1 : 0.35)) + 1;
-        return { bank, tier: t, angle, R: RING_RADIUS[t] * jitter };
-      })
-    );
+    this.tierOrder = tierOrder || [...new Set(tiers)];
+    this._shade = (i) => {
+      const t = Math.max(0, this.tierOrder.indexOf(tiers[i]));
+      const hex = TIER_SHADE[Math.min(t, TIER_SHADE.length - 1)];
+      const b = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+      return HEALTHY.map((v, k) => Math.round(v + (b[k] - v) * 0.6)).join(',');
+    };
 
-    const maxA = Math.max(...A.flat(), 1e-9);
+    // positions arrive normalised to the unit square; y is flipped so the
+    // exported layout (y up) draws the same way on canvas (y down).
+    this._nodeAt = positions.map(([x, y], i) => ({ bank: i, x, y: 1 - y }));
+
+    if (importance && importance.length === this.n) {
+      const lo = Math.min(...importance), hi = Math.max(...importance);
+      const span = hi - lo || 1;
+      this._weight = importance.map((v) => (v - lo) / span);
+    } else {
+      this._weight = new Array(this.n).fill(0.5);
+    }
+
+    const maxA = Math.max(...A.flat().map(Math.abs), 1e-9);
     this._edges = [];
     for (let i = 0; i < this.n; i++)
       for (let j = 0; j < this.n; j++) {
-        if (i !== j && A[i][j] > 0.02 * maxA)
-          this._edges.push({ i, j, w: A[i][j] / maxA });
+        if (i !== j && Math.abs(A[i][j]) > 0.02 * maxA)
+          this._edges.push({ i, j, w: Math.abs(A[i][j]) / maxA });
       }
 
     canvas.addEventListener('pointerdown', (ev) => this._pick(ev));
@@ -65,13 +77,11 @@ export class Network2D {
 
   _geometry() {
     const W = Math.max(10, this.canvas.clientWidth || 300), H = Math.max(10, this.canvas.clientHeight || 300);
-    const R = Math.max(10, Math.min(W, H) / 2 - 22);
-    const cx = W / 2, cy = H / 2;
-    const xy = this._nodeAt.map(({ angle, R: rr }) => [
-      cx + R * rr * Math.cos(angle),
-      cy + R * rr * Math.sin(angle),
-    ]);
-    return { W, H, cx, cy, R, xy };
+    const m = 30;
+    const side = Math.max(10, Math.min(W, H) - 2 * m);
+    const ox = (W - side) / 2, oy = (H - side) / 2;
+    const xy = this._nodeAt.map(({ x, y }) => [ox + x * side, oy + y * side]);
+    return { W, H, xy };
   }
 
   _draw() {
@@ -84,19 +94,7 @@ export class Network2D {
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const { cx, cy, R, xy } = this._geometry();
-
-    for (let t = 0; t < 3; t++) {
-      ctx.strokeStyle = '#232b3d';
-      ctx.beginPath();
-      ctx.arc(cx, cy, Math.max(0, R * RING_RADIUS[t]), 0, 2 * Math.PI);
-      ctx.stroke();
-    }
-    ctx.fillStyle = '#A8B0B5';
-    ctx.font = '10px "Inter", sans-serif';
-    for (const [t, label] of [[0, 'core'], [1, 'intermediate'], [2, 'periphery']]) {
-      ctx.fillText(label, cx + 4, cy - R * RING_RADIUS[t] - 5);
-    }
+    const { xy } = this._geometry();
 
     for (const { i, j, w } of this._edges) {
       ctx.strokeStyle = `rgba(110,135,195,${0.07 + 0.35 * w})`;
@@ -121,12 +119,26 @@ export class Network2D {
         ctx.globalAlpha = 1;
         this._pulse[k] = Math.max(0, this._pulse[k] - 0.03);
       }
-      const color = failed ? FAILED : `rgb(${hsvLerp(this.tiers[node.bank])})`;
-      const r = Math.max(1, (failed ? 9 : 7.5) * (1 + 0.15 * (2 - node.tier)));
+      const color = failed ? FAILED : `rgb(${this._shade(node.bank)})`;
+      const r = Math.max(1, (5.5 + 7 * this._weight[node.bank]) * (failed ? 1.15 : 1));
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, 2 * Math.PI);
       ctx.fill();
+      if (this.seeds.has(node.bank)) {
+        ctx.strokeStyle = FAILED;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 4.5, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+      const tag = this.mark[node.bank];
+      if (tag) {
+        ctx.fillStyle = '#62B6CF';
+        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(tag, x + r + 4, y - r);
+      }
       if (this.selected.has(node.bank)) {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;

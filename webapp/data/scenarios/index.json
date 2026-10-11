@@ -1,0 +1,106 @@
+[
+ {
+  "id": "s1_conglomerate_core",
+  "title": "Tight Conglomerate Core",
+  "problem": "finance",
+  "n": 12,
+  "beta": 2.5,
+  "steps": 20000,
+  "chains": 4,
+  "kind": "bailout",
+  "story": "A tight cluster of banks that prop each other up. Six core banks guarantee each other's debt so tightly that the system has two stable moods: everything stands, or the whole core falls together. A short simulation that only explores one mood will confidently tell you the wrong bank to bail out.",
+  "verdict": "QeMCMC ranked the targets correctly at 4,000 steps; classical MH needed 12,000 -- a 3x iteration-budget gap. Both converge eventually, but under a fixed budget the wrong ranking means the wrong bailout.",
+  "stepsToRank": {
+   "quantum": 4000,
+   "metro": 8000
+  },
+  "fidelity": {
+   "metro": {
+    "chi_relerr": 0.0183,
+    "mu_spearman": 0.972
+   },
+   "quantum": {
+    "chi_relerr": 0.0083,
+    "mu_spearman": 0.958
+   }
+  }
+ },
+ {
+  "id": "s2_hidden_amplifier",
+  "title": "Fragile Periphery, Hidden Amplifier",
+  "problem": "finance",
+  "n": 12,
+  "beta": 2.2,
+  "steps": 20000,
+  "chains": 4,
+  "kind": "bailout",
+  "story": "A mid-tier bank quietly amplifies every shock. The dangerous bank is not the biggest one: it sits in the periphery of the network and multiplies whatever hits it. Vulnerability that only shows up under stress is exactly what a frozen sampler misses.",
+  "verdict": "Both samplers converge here, but the quantum arm's chi error stays roughly 1.4x lower and its rho reaches 0.986 vs 0.916 -- the amplifier ranks correctly sooner and more sharply.",
+  "stepsToRank": {
+   "quantum": 8000,
+   "metro": 8000
+  },
+  "fidelity": {
+   "metro": {
+    "chi_relerr": 0.0746,
+    "mu_spearman": 0.9161
+   },
+   "quantum": {
+    "chi_relerr": 0.0545,
+    "mu_spearman": 0.986
+   }
+  }
+ },
+ {
+  "id": "s3_rival_alliances",
+  "title": "Rival Alliances",
+  "problem": "finance",
+  "n": 12,
+  "beta": 2.5,
+  "steps": 20000,
+  "chains": 4,
+  "kind": "bailout",
+  "story": "Two alliances whose guarantees cancel each other out. Frustrated loops of guarantees mean no arrangement pleases everyone -- the energy landscape is rugged for every method. This is the honest control: both samplers agree, and the gallery says so.",
+  "verdict": "No time-to-accuracy gap: both rank correctly from the shortest prefix. Reported as a control, not a win -- the mechanism needs a two-basin landscape, and frustration destroys the double well here.",
+  "stepsToRank": {
+   "quantum": 2000,
+   "metro": 2000
+  },
+  "fidelity": {
+   "metro": {
+    "chi_relerr": 0.0393,
+    "mu_spearman": 1.0
+   },
+   "quantum": {
+    "chi_relerr": 0.0197,
+    "mu_spearman": 1.0
+   }
+  }
+ },
+ {
+  "id": "s4_rush_hour",
+  "title": "Rush-Hour Gridlock",
+  "problem": "traffic",
+  "n": 9,
+  "beta": 2.5,
+  "steps": 20000,
+  "chains": 4,
+  "kind": "widening",
+  "story": "A city grid at rush hour, one closure from gridlock. Closing the wrong street at the wrong hour doesn't just slow one block -- traffic reroutes and jams somewhere else. The worst street is only visible once you've seen both the free-flowing and the gridlocked regime.",
+  "verdict": "QeMCMC ranked the widening targets correctly at 8,000 steps; classical MH needed the full 20,000 -- a 2.5x iteration-budget gap, and the only arm whose final ranking matches the exact answer exactly (rho = 1.0).",
+  "stepsToRank": {
+   "quantum": 4000,
+   "metro": 20000
+  },
+  "fidelity": {
+   "metro": {
+    "chi_relerr": 0.0667,
+    "mu_spearman": 0.9667
+   },
+   "quantum": {
+    "chi_relerr": 0.048,
+    "mu_spearman": 1.0
+   }
+  }
+ }
+]

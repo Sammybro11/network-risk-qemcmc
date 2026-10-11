@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .qubo import ising_energy
 from .proposals import local_proposal
+from .qubo import ising_energy
 
 
 @dataclass

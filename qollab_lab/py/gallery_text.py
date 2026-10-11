@@ -18,52 +18,43 @@ HOW_TO_READ = (
     "(6) regret bars: what picking the wrong bank/street costs at each budget."
 )
 
-CAVEATS = [
-    "convergence ladders are prefix-truncated versions of the SAME chains "
-    "(within-run convergence), not independent restarts",
-    "wall-clock cost differs strongly between arms (ms/step reported); the "
-    "headline is steps-to-correct-ranking, the iteration budget",
-    "the recorded quantum arm ran on an unseeded simulator, so numbers vary "
-    "run-to-run; the reported ranking gaps are far larger than that spread",
-]
-
 _STORIES = {
     "s1_conglomerate_core": (
-        "A tight cluster of banks that prop each other up. Six core banks "
-        "guarantee each other's debt so tightly that the system has two stable "
-        "moods: everything stands, or the whole core falls together. A short "
-        "simulation that only explores one mood will confidently tell you the "
-        "wrong bank to bail out.",
-        "QeMCMC ranked the targets correctly at 4,000 steps; classical MH needed "
-        "12,000 -- a 3x iteration-budget gap. Both converge eventually, but under "
-        "a fixed budget the wrong ranking means the wrong bailout.",
+        ("A tight cluster of banks that prop each other up. Six core banks "
+         "guarantee each other's debt so tightly that the system has two stable "
+         "moods: everything stands, or the whole core falls together. A short "
+         "simulation that only explores one mood will confidently tell you the "
+         "wrong bank to bail out."),
+        ("QeMCMC ranked the targets correctly at 4,000 steps; classical MH needed "
+         "12,000 -- a 3x iteration-budget gap. Both converge eventually, but under "
+         "a fixed budget the wrong ranking means the wrong bailout."),
     ),
     "s2_hidden_amplifier": (
-        "A mid-tier bank quietly amplifies every shock. The dangerous bank is not "
-        "the biggest one: it sits in the periphery of the network and multiplies "
-        "whatever hits it. Vulnerability that only shows up under stress is "
-        "exactly what a frozen sampler misses.",
-        "Both samplers converge here, but the quantum arm's chi error stays "
-        "roughly 1.4x lower and its rho reaches 0.986 vs 0.916 -- the amplifier "
-        "ranks correctly sooner and more sharply.",
+        ("A mid-tier bank quietly amplifies every shock. The dangerous bank is not "
+         "the biggest one: it sits in the periphery of the network and multiplies "
+         "whatever hits it. Vulnerability that only shows up under stress is "
+         "exactly what a frozen sampler misses."),
+        ("Both samplers converge here, but the quantum arm's chi error stays "
+         "roughly 1.4x lower and its rho reaches 0.986 vs 0.916 -- the amplifier "
+         "ranks correctly sooner and more sharply."),
     ),
     "s3_rival_alliances": (
-        "Two alliances whose guarantees cancel each other out. Frustrated loops "
-        "of guarantees mean no arrangement pleases everyone -- the energy "
-        "landscape is rugged for every method. This is the honest control: both "
-        "samplers agree, and the gallery says so.",
-        "No time-to-accuracy gap: both rank correctly from the shortest prefix. "
-        "Reported as a control, not a win -- the mechanism needs a two-basin "
-        "landscape, and frustration destroys the double well here.",
+        ("Two alliances whose guarantees cancel each other out. Frustrated loops "
+         "of guarantees mean no arrangement pleases everyone -- the energy "
+         "landscape is rugged for every method. This is the honest control: both "
+         "samplers agree, and the gallery says so."),
+        ("No time-to-accuracy gap: both rank correctly from the shortest prefix. "
+         "Reported as a control, not a win -- the mechanism needs a two-basin "
+         "landscape, and frustration destroys the double well here."),
     ),
     "s4_rush_hour": (
-        "A city grid at rush hour, one closure from gridlock. Closing the wrong "
-        "street at the wrong hour doesn't just slow one block -- traffic reroutes "
-        "and jams somewhere else. The worst street is only visible once you've "
-        "seen both the free-flowing and the gridlocked regime.",
-        "QeMCMC ranked the widening targets correctly at 8,000 steps; classical "
-        "MH needed the full 20,000 -- a 2.5x iteration-budget gap, and the only "
-        "arm whose final ranking matches the exact answer exactly (rho = 1.0).",
+        ("A city grid at rush hour, one closure from gridlock. Closing the wrong "
+         "street at the wrong hour doesn't just slow one block -- traffic reroutes "
+         "and jams somewhere else. The worst street is only visible once you've "
+         "seen both the free-flowing and the gridlocked regime."),
+        ("QeMCMC ranked the widening targets correctly at 8,000 steps; classical "
+         "MH needed the full 20,000 -- a 2.5x iteration-budget gap, and the only "
+         "arm whose final ranking matches the exact answer exactly (rho = 1.0)."),
     ),
 }
 

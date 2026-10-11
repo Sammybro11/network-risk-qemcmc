@@ -28,22 +28,22 @@ import time
 import warnings
 
 import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 try:
-    backend  # noqa: F821 -- qollab injects this global; its runtime renders plt.show() as SVG
+    backend  # type: ignore[name-defined]  # noqa: B018 -- qollab injects this global; its runtime renders plt.show() as SVG
     ON_QOLLAB = True
 except NameError:
     ON_QOLLAB = False
+    backend = None  # local run: no qollab backend global
     matplotlib.use("Agg")  # local run: no display, just produce figures
-import matplotlib.pyplot as plt
-import numpy as np
 
 from py.api import (
     build_instance,
-    cascade_seeds,
     exact_m,
     optimal_m,
     random_m,
@@ -67,8 +67,8 @@ TIER_COLORS = {"hub": "#d1495b", "arterial": "#edae49", "local": "#66a182"}
 
 # Scenario 4 (Rush-Hour Gridlock) -- identical to the recorded showcase run,
 # so live numbers can be compared against it side by side.
-SCENARIO = dict(problem="traffic", L=3, seed=42, lam=2.0, vuln=0.05,
-                ring=True, fracs=(0.15, 0.35, 0.5), theta=0.5)
+SCENARIO = {"problem": "traffic", "L": 3, "seed": 42, "lam": 2.0, "vuln": 0.05,
+            "ring": True, "fracs": (0.15, 0.35, 0.5), "theta": 0.5}
 
 
 def _sample_mu(J, h, beta, propose, steps, chains, burn_in, seed_offset=0):
@@ -147,16 +147,17 @@ def _live_run(steps, chains, burn_in, beta, vuln, lam, frustration, omega,
     m_exact = float(exact_mean_spin(J, h, beta).mean())
     print(f"      exact: <E>={e_exact:+.3f}, mean health m={m_exact:+.3f} "
           f"({time.perf_counter() - t0:.2f} s by enumeration)")
-    hub = [i for i, t in enumerate(tiers) if t == "hub"][0]
+    hub = next(i for i, t in enumerate(tiers) if t == "hub")
     print(f"      cascade seed: intersection {hub} (the hub)")
 
     # ------------------------------------------------------------ stage 2
     print(f"\n[2/3] race: {steps} steps x {chains} chain, classical MH then live quantum")
-    qe_kwargs = dict(gamma=(min(q_gamma, 0.9 * q_gamma), q_gamma),
-                     time=(max(1.0, 0.5 * q_time), q_time),
-                     simulator=(backend if ON_QOLLAB else None))
+    qe_kwargs = {"gamma": (min(q_gamma, 0.9 * q_gamma), q_gamma),
+                 "time": (max(1.0, 0.5 * q_time), q_time)}
+    if ON_QOLLAB:
+        qe_kwargs["simulator"] = backend  # type: ignore[name-defined] # qollab's pre-created backend global
     arms = {}
-    plans = [("metro", local_proposal, 0)]
+    plans: list[tuple] = [("metro", local_proposal, 0)]
     if live_quantum:
         plans.append(("quantum", QeProposal(J, h, **qe_kwargs), 100))
     else:
@@ -183,7 +184,6 @@ def _live_run(steps, chains, burn_in, beta, vuln, lam, frustration, omega,
     # ------------------------------------------------------------ stage 3
     print(f"\n[3/3] widening study: omega={omega}, budget={budget} "
           "(who to widen first, and what picking wrong costs)")
-    seeds = cascade_seeds(A, "traffic")
     strategies = {
         "exact": mu_exact,
         "metro": arms["metro"]["mu"],
@@ -246,7 +246,7 @@ def _compare_with_recorded(arms):
                   "are mid-equilibration (quantum leads) -- set `steps` to "
                   f"{fmt_steps(q_good)} on the form to see the quantum ranking "
                   "land correct live.")
-    except Exception as exc:  # digests are bundled, so this is belt-and-braces
+    except Exception as exc:  # noqa: BLE001 # digests are bundled, so this is belt-and-braces
         print(f"\n(skip recorded comparison: {exc})")
 
 
@@ -285,7 +285,7 @@ def _fig_instance(J, h, A, tiers, mu_exact, beta, L, vuln, fr_edges):
     ax2.set_title(r"couplings $J_{ij}$ (flipped rows = frustration)", fontsize=10)
     fig.colorbar(im, ax=ax2, fraction=0.046)
     for i, j in fr_edges:
-        ax2.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False,
+        ax2.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False,  # type: ignore[attr-defined] # Rectangle is re-exported by pyplot at runtime
                                     edgecolor="k", lw=1.4))
     fig.suptitle(f"LIVE Rush-Hour Gridlock ({L}x{L}), beta={beta}, vuln={vuln}",
                  fontsize=11)

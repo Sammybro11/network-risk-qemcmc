@@ -1,5 +1,0 @@
-# Qollab installs Qiskit automatically if unlisted; pinning the same range
-# the runtime would choose keeps the JS Qiskit API and Python engine in sync.
-qiskit>=2.5.2,<3.0.0
-# NumPy ships with Pyodide and would load on import anyway; listed for clarity.
-numpy

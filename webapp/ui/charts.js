@@ -5,6 +5,9 @@ const COLORS = {
   quantum: '#62B6CF',
   metro: '#F08A73',
   exact: '#C3CBD1',
+  // Bright accent reserved for the exact-truth marker line in drawRanking:
+  // the reference every bar is judged against should be impossible to miss.
+  exactMark: '#FFC94D',
   grid: '#4A545C',
   text: '#D6DBDE',
   healthy: '#4A5D6E',
@@ -134,9 +137,16 @@ export function drawRanking(canvas, { muExact, arms, strategies, tiers }) {
   const { ctx, w, h } = setup(canvas);
   ctx.clearRect(0, 0, w, h);
   const n = muExact.length;
-  const entries = Object.entries({ exact: muExact, ...arms, ...strategies });
+  // The exact truth is drawn as a dashed marker line, not a bar: every other
+  // series is judged against it, so it gets its own bright accent colour and
+  // is skipped when sizing/laying out the bar groups.
+  const entries = Object.entries({ ...arms, ...strategies });
   const order = muExact.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).map(([, i]) => i);
-  const maxV = Math.max(...entries.flatMap(([, v]) => v.map(Math.abs)), 1e-9);
+  const maxV = Math.max(
+    Math.max(...muExact.map(Math.abs)),
+    Math.max(...entries.flatMap(([, v]) => v.map(Math.abs))),
+    1e-9,
+  );
   // Sits under the mechanism panel, spanning the full grid width. Left pad
   // now holds y-axis tick labels; bottom pad holds the rotated node labels.
   const pad = { l: 46, r: 16, t: 18, b: 40 };
@@ -173,6 +183,19 @@ export function drawRanking(canvas, { muExact, arms, strategies, tiers }) {
       ctx.fillRect(x, pad.t + plotH - bh, barW - 1, bh);
     });
 
+    // Exact truth for this bank as a bright dashed marker spanning the whole
+    // group, sitting on TOP of the bars so it is always visible against them.
+    const ey = pad.t + plotH - (muExact[bank] / maxV) * plotH;
+    ctx.strokeStyle = COLORS.exactMark;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x0 + 1, ey);
+    ctx.lineTo(x0 + groupW - 1, ey);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1;
+
     // Node label under its group; rotate when the group is narrower than
     // the text so adjacent labels never collide (up to 16 banks in finance).
     const label = `B${bank} ${tiers[bank]}`;
@@ -192,6 +215,20 @@ export function drawRanking(canvas, { muExact, arms, strategies, tiers }) {
 
   ctx.textAlign = 'left';
   let lx = pad.l;
+  // First swatch: a short dashed line in the marker colour, matching how the
+  // exact series is actually drawn in the chart.
+  ctx.strokeStyle = COLORS.exactMark;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(lx, h - 14);
+  ctx.lineTo(lx + 12, h - 14);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+  ctx.fillStyle = COLORS.text;
+  ctx.fillText('exact', lx + 16, h - 8);
+  lx += 16 + ctx.measureText('exact').width + 16;
   for (const [name] of entries) {
     // Swatch in the series colour, text always light: the baseline colours are
     // dark slate by design and unreadable as text on the panel background.

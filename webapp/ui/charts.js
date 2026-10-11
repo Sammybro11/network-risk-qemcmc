@@ -15,6 +15,10 @@ const COLORS = {
   'random-mean': '#3A4B59',
   'quantum-chi': '#62B6CF',
   'metro-chi': '#F08A73',
+  // sequential (re-ranked between doses) arms: same hue, lighter
+  'exact-seq': '#D8DDE1',
+  'quantum-seq': '#9FD8E8',
+  'metro-seq': '#F7BDAE',
 };
 
 function setup(canvas) {
@@ -38,10 +42,12 @@ function axes(ctx, w, h, pad) {
 }
 
 export function drawTraces(canvas, series, { reference, yLabel = '' }) {
-  // series: [{ name, color, ys }] plotted against step index.
+  // series: [{ name, color, ys }] plotted against step index. A NaN entry is
+  // a deliberate gap (chain boundary), not data: it breaks the stroke so four
+  // concatenated chains do not read as one continuous walk.
   const { ctx, w, h } = setup(canvas);
   const pad = { l: 52, r: 12, t: 10, b: 26 };
-  const all = series.flatMap((s) => s.ys);
+  const all = series.flatMap((s) => s.ys).filter(Number.isFinite);
   if (reference !== undefined) all.push(reference);
   if (!all.length) return;
   let lo = Math.min(...all), hi = Math.max(...all);
@@ -73,10 +79,18 @@ export function drawTraces(canvas, series, { reference, yLabel = '' }) {
 
   for (const s of series) {
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = 1.6;
+    ctx.globalAlpha = s.alpha ?? 1;
+    ctx.lineWidth = s.width ?? 1.6;
     ctx.beginPath();
-    s.ys.forEach((v, i) => (i ? ctx.lineTo(X(i, s.ys.length), Y(v)) : ctx.moveTo(X(0, s.ys.length), Y(v))));
+    let pen = false;
+    s.ys.forEach((v, i) => {
+      if (!Number.isFinite(v)) { pen = false; return; }
+      if (pen) ctx.lineTo(X(i, s.ys.length), Y(v));
+      else ctx.moveTo(X(i, s.ys.length), Y(v));
+      pen = true;
+    });
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   ctx.textAlign = 'left';

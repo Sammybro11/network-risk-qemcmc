@@ -17,9 +17,28 @@ uv sync                          # install deps into .venv
 uv run python ...                # run anything inside the project env
 uv run risk-qemcmc               # CLI entry point; currently a stub printing hello (risk_qemcmc/__init__.py:main)
 uv run pytest                    # tests/ — diagnostics (ESS/autocorr/susceptibility), enumeration barrier
+uv run pytest tests/test_diagnostics.py::test_ess_of_iid_noise_is_near_n -q   # single test
+
+uv run python experiments/financial_contagion.py                 # finance lab CLI
+uv run python experiments/traffic_congestion.py                  # traffic lab CLI
+uv run python experiments/scen_s1_conglomerate_core.py --smoke   # scenario, 300 steps
+uv run python experiments/scen_preflight.py                      # gate scenarios before long runs
+uv run python experiments/export_webapp_scenarios.py             # digests + rebuilt instances -> webapp/data/scenarios/
+uv run python experiments/export_qollab_data.py                  # recorded-run JSON for the qollab_app path
+uv run python experiments/export_scenario_digests.py             # ~100 MB payloads -> qollab_lab/py/scenarios_data.py
+uv run python experiments/render_showcase.py                     # figures from experiments/results/*.json
+uv run python scripts/package_qollab.py                          # build dist/qollab_lab.zip + dist/qollab_webapp.zip
+python3 -m http.server 8000 --directory webapp                   # serve the webapp (ES modules; file:// breaks)
 ```
 
-There is no lint/typecheck config, no Makefile, no CI.
+No lint/typecheck config, no Makefile. The only CI is
+`.github/workflows/pages.yml`, which publishes `webapp/` to GitHub Pages on push
+to main — it runs no tests.
+
+Experiment scripts import `scenarios_common` as a flat module, so run them as
+`uv run python experiments/<script>.py` from the repo root (script-dir-on-sys.path);
+`python -m experiments.x` will not resolve. `experiments/results/*.json` are Git LFS
+tracked (`.gitattributes`).
 
 ## Architecture / data flow
 
@@ -111,11 +130,10 @@ the target distribution would shift under the sampler and χ would be garbage.
 - `experiments/financial_contagion.py`: lab CLI (adds `--fracs`); prints exact-vs-sampler χ
   metrics and the bailout table incl. `exact-seq`/`metro-seq`/`quantum-seq` rows.
 - `experiments/export_qollab_data.py`: serializes the recorded run (arms, χ, μ, exact truth,
-  statics, bailout table with sequential rows) to `qollab_app/data/run.json` (and the same
-  schema powers `webapp/data/run.json`); `--fracs` available.
-- Browser mirrors: `webapp/` (pure JS) and `qollab_app/` (Pyodide) re-implement enumeration,
-  Metropolis, the Trotter circuit, χ/μ, and regret charts; webapp JSON is loaded by `main.js`
-  with `drawRanking`/`drawRegret` consuming exactly the table rows above.
+  statics, bailout table with sequential rows) to `qollab_app/data/run.json`; `--fracs`
+  available. The webapp no longer consumes this — see `export_webapp_scenarios.py`.
+- Browser mirror: `webapp/` (pure JS) re-implements enumeration, Metropolis, the Trotter
+  circuit, χ/μ and the regret charts, one module per recorded scenario.
 
 ### Traffic congestion layer (`problems/traffic.py`, arXiv:2605.03879 framing)
 
@@ -197,6 +215,81 @@ chains, where bias-by-construction and regret noise would false-fail).
 - **Exact reference values** (`exact_moments`, `exact_cascade`) enforce `n ≤ 20` (or `< 21`) with `assert` — enumeration is 2^n. Raised from 16 for headroom; the dashboard UI still caps n at 16 because the budget-OPT subset search is C(n,K) × 2^n and explodes regardless. Do not remove the assert; validate scaling differently. `scenarios_common._enumerate_chunked` raises the practical ceiling to n ≤ 22 (chunked 2^n pass, a few hundred MB at n=22) for scenario ground truth without touching the assert.
 - **RNG:** everything takes `np.random.Generator`; use `np.random.default_rng(seed)`. Instances are seeded via (`n`, `seed`) — `risk_network`'s structure depends only on those two.
 - Slide comments/code style: short docstrings with a purpose; empty `__init__.py`s; one class/dataclass or a few related functions per file.
+
+## Three implementations of the same algorithm — keep them in sync
+
+| Path | Runtime | Role |
+| :--- | :--- | :--- |
+| `src/risk_qemcmc/` | CPython + qiskit-aer | source of truth |
+| `qollab_lab/py/` | Pyodide on qollab.xyz | **vendored copy** of core modules; `main.py` is the entry |
+| `webapp/` | browser, vanilla ES modules | independent JS port (own statevector sim, enumeration, χ) |
+
+After any core change, re-diff the vendored copies with the loop in
+`qollab_lab/README.md`. Only two diffs are expected: `mcmc.py` (tqdm stripped) and
+`qe_proposal.py` (relative import + injected-simulator support + lazy Aer import).
+
+## Webapp (`webapp/`, static showcase dashboard)
+
+No build step, no backend. Two views behind a hash route: `#/` is the landing page,
+`#/<scenario-id>` is that scenario's dashboard.
+
+**The landing page is pitched at the general model, not at finance.** The claim is that
+any system dominated by pairwise correlated failure is the same Hamiltonian, so the page
+leads with the Ising-object → risk-meaning mapping table and the three diagonal shock
+encodings (field kick / structure change / seed pinning, with an intervention as the same
+edit sign-flipped), then shows eight candidate domains (`DOMAINS` in `app.js`; the two
+implemented ones link to their scenario), and only then the scenarios themselves under
+"the two we built". Keep new copy domain-neutral — finance and traffic are instantiations,
+not the product.
+
+The landing page also carries the "what we claim and what we do not" box (both arms
+converge; the result is an iteration-budget gap; the quantum arm is simulated so no
+wall-clock speedup; the hardware demo was n = 10 on 27 qubits). Do not quietly drop it. Cards and the in-dashboard scenario switcher are both built
+from `data/scenarios/index.json`, which is why the exporter puts `story`, `verdict`,
+`stepsToRank` and `fidelity` in the index — the landing page fetches no payloads.
+
+One module per recorded scenario: `registry.js` fetches
+`data/scenarios/index.json` and instantiates `adapters/scenario.js` per entry.
+`app.js` renders generically against the adapter contract (`schema`,
+`getVisualizations()`, `getResults()`, `getSolution()`, …), so **adding a scenario means
+exporting another JSON, not editing `app.js`**. Shared primitives live in `ui/`:
+`physics.js` (enumeration, ground truth, optimal interventions, cascade closure),
+`runner.js` (live race, multi-chain), `stats.js` (χ/μ/Spearman/ESS), `charts.js`,
+`mechanism.js` (flip-size + basin histograms), `network2d.js`, `bailout.js`.
+
+Finance and traffic scenarios share every panel; they differ only through the `LEXICON`
+in `scenario.js` (bank/bailout vs segment/widening), because `apply_bailout` and
+`apply_widening` are the same field edit.
+
+Data flow: `experiments/export_webapp_scenarios.py` → `webapp/data/scenarios/*.json`.
+Because `experiments/results/*.json` are LFS-tracked 100+ MB payloads that are usually
+absent from a working copy, that script reads the **committed digests** in
+`qollab_lab/py/scenarios_data.py` and rebuilds (J, h, A) from the spec via
+`scenarios_common.build_instance()` — the digests carry the recorded run but not the
+instance, and the browser needs the instance for live runs, exact re-enumeration and the
+policy lab. The rebuild is verified against the digest's edge list and tier labels
+before writing; a mismatch is a hard failure, not a warning.
+
+Two framing rules the UI must keep (both were violated by earlier versions):
+- **Never hardcode run numbers into prose.** `getSolution()` derives everything from the
+  run being displayed, so a live run that disagrees with the recorded one says so.
+- **The headline is time-to-accuracy, not final accuracy.** At the full 20k-step budget
+  both arms converge (s1 metro ρ = 0.972 vs quantum 0.958); the defensible claim is the
+  iteration-budget gap from the convergence ladder (`convergenceSummary()`).
+
+Live runs pool `chains` independent chains before estimating χ. A single short chain
+reports whichever basin it started in — at 150 steps the quantum arm scores ρ = −0.57,
+which is sampling noise, not a result. Hence the 500-step floor and the 2000 × 2 default.
+
+JS endianness differs deliberately: the amplitude index keeps qubit `i` at bit position
+`i`, so no fix-up anywhere in the JS — whereas the Python/Aer path **must** reverse the
+measured bitstring (`QeProposal._propose_bits`).
+
+## Deployment targets
+
+Vercel (root `vercel.json`, `outputDirectory: webapp`), GitHub Pages (workflow above),
+and qollab.xyz via the two zips from `scripts/package_qollab.py` (`dist/qollab_lab.zip`
+Python project, `dist/qollab_webapp.zip` JS project). Details in `DEPLOYMENT_GUIDE.md`.
 
 ## Qollab lab (`qollab_lab/`, qollab Python project)
 

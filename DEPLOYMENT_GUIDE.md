@@ -59,7 +59,7 @@ This produces two deployment archives in `dist/`:
 2. Select and upload `dist/qollab_webapp.zip`.
 3. Qollab will detect `index.html` and `main.js` and categorize it as a **JavaScript project**.
 4. Click **Run**.
-   - The interactive canvas will render above the console, allowing you to run live simulations, toggle between Interbank Contagion and Max-Cut graph optimization, and inspect network topologies and convergence metrics in real-time.
+   - The interactive canvas will render above the console, allowing you to switch between the four recorded showcase scenarios (three interbank contagion networks and a rush-hour road grid), re-run the QeMCMC-vs-Metropolis race live, and score your own intervention against the exact optimum.
 
 ---
 

@@ -1,11 +1,12 @@
-// Bailout policy lab: pick up to K banks (buttons or 3D clicks), score the
-// intervention by exact re-enumeration through the Python engine, and show
-// regret against the true optimum for that budget.
+// Intervention policy lab: pick up to K nodes (buttons or network clicks),
+// score the intervention by exact in-browser re-enumeration, and show regret
+// against the exhaustive optimum for that budget. A bailout and a road
+// widening are the same field edit, so `lex` supplies the vocabulary.
 
 import { topK } from './stats.js';
 
 export class BailoutPanel {
-  constructor({ n, tiers, omega, budget, optimal, strategies, evaluate, onSelection }) {
+  constructor({ n, tiers, omega, budget, optimal, strategies, evaluate, onSelection, lex }) {
     this.n = n;
     this.omega = omega;
     this.budget = budget;
@@ -13,6 +14,7 @@ export class BailoutPanel {
     this.strategies = strategies;
     this.evaluate = evaluate; // async (nodes:number[]) => m
     this.onSelection = onSelection;
+    this.lex = lex;
     this.selected = new Set();
 
     this.kSelect = document.getElementById('bailout-k');
@@ -22,7 +24,7 @@ export class BailoutPanel {
     for (let i = 0; i < n; i++) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = `B${i} · ${tiers[i]}`;
+      b.textContent = `${lex.abbr}${i} · ${tiers[i]}`;
       b.setAttribute('aria-pressed', 'false');
       b.addEventListener('click', () => this.toggle(i));
       this.picker.appendChild(b);
@@ -66,7 +68,8 @@ export class BailoutPanel {
     }
     this.onSelection(nodes);
     if (!nodes.length) {
-      this.result.textContent = 'Select banks to rescue, or apply a strategy preset.';
+      this.result.textContent =
+        `Select ${this.lex.unit}s to ${this.lex.verb}, or apply a strategy preset.`;
       return;
     }
     this.result.textContent = 'Scoring intervention...';
@@ -75,9 +78,10 @@ export class BailoutPanel {
       const opt = this.optimal[String(Math.max(1, this.k))];
       const regret = Math.max(0, opt.m - m);
       const cls = regret < 0.01 ? 'good' : 'bad';
+      const tag = (i) => this.lex.abbr + i;
       this.result.innerHTML =
-        `m(S) = <b>${m.toFixed(3)}</b> under bailout {${nodes.map((i) => 'B' + i).join(', ')}}; ` +
-        `optimal at K=${this.k} is ${opt.m.toFixed(3)} {${opt.set.map((i) => 'B' + i).join(', ')}}; ` +
+        `m(S) = <b>${m.toFixed(3)}</b> under ${this.lex.action} {${nodes.map(tag).join(', ')}}; ` +
+        `optimal at K=${this.k} is ${opt.m.toFixed(3)} {${opt.set.map(tag).join(', ')}}; ` +
         `regret <span class="${cls}">${regret.toFixed(3)}</span>`;
     } catch (err) {
       this.result.textContent = 'Scoring failed: ' + err;

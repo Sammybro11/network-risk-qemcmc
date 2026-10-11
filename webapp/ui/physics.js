@@ -1,7 +1,7 @@
 // Exact Boltzmann ground truth by 2^n enumeration, mirrored from
 // risk_qemcmc.problems.qubo and qollab_app/quantum/exact.py. Consumes the
-// J/h matrices shipped in data/run.json, so page numbers are guaranteed to
-// match the recorded run's Python-generated instance.
+// J/h matrices shipped in data/scenarios/<name>.json, so page numbers are
+// guaranteed to match the recorded run's Python-generated instance.
 
 export function enumerateStates(J, h, beta) {
   const n = h.length;

@@ -64,8 +64,8 @@ export class Network2D {
   }
 
   _geometry() {
-    const W = this.canvas.clientWidth, H = this.canvas.clientHeight;
-    const R = Math.min(W, H) / 2 - 22;
+    const W = Math.max(10, this.canvas.clientWidth || 300), H = Math.max(10, this.canvas.clientHeight || 300);
+    const R = Math.max(10, Math.min(W, H) / 2 - 22);
     const cx = W / 2, cy = H / 2;
     const xy = this._nodeAt.map(({ angle, R: rr }) => [
       cx + R * rr * Math.cos(angle),
@@ -116,13 +116,13 @@ export class Network2D {
         ctx.globalAlpha = this._pulse[k] * 0.7;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(x, y, 5 + (1 - this._pulse[k]) * 16, 0, 2 * Math.PI);
+        ctx.arc(x, y, Math.max(0, 5 + (1 - this._pulse[k]) * 16), 0, 2 * Math.PI);
         ctx.stroke();
         ctx.globalAlpha = 1;
         this._pulse[k] = Math.max(0, this._pulse[k] - 0.03);
       }
       const color = failed ? FAILED : `rgb(${hsvLerp(this.tiers[node.bank])})`;
-      const r = (failed ? 9 : 7.5) * (1 + 0.15 * (2 - node.tier));
+      const r = Math.max(1, (failed ? 9 : 7.5) * (1 + 0.15 * (2 - node.tier)));
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, 2 * Math.PI);

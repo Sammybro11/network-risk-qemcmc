@@ -66,14 +66,6 @@ class Diagnostics:
         """Standard error of the mean energy, ESS-corrected."""
         return float(np.std(self.result.energies) / np.sqrt(self.ess()))
 
-    def post_selection_rate(self) -> float:
-        """kept_shots / total_shots; 1.0 for chains without post-selection."""
-        return self.result.post_selection_rate
-
-    def ess_per_shot(self) -> float:
-        """ESS divided by total shots (incl. discards); the honest cost metric."""
-        return self.ess() / self.result.total_shots_or_steps
-
 
 def susceptibility(states: np.ndarray, beta: float) -> np.ndarray:
     """Bailout susceptibility chi_ij = beta Cov(z_i, z_j) from chain samples."""

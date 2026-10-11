@@ -76,5 +76,6 @@ class QeProposal:
 
     def __call__(self, z: np.ndarray, rng: np.random.Generator) -> np.ndarray:
         g, t, r = self._draw_params(rng)
+        self.last_params = (g, t, r)  # recorded by tracing wrappers; do not rely on it in the MH path
         bits = ((1 - np.asarray(z)) // 2).astype(int)
         return 1 - 2 * self._propose_bits(bits, g, t, r)

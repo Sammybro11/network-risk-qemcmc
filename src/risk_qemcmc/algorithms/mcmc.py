@@ -14,11 +14,7 @@ class MCMCResult:
     states: np.ndarray
     energies: np.ndarray
     accepted: np.ndarray
-    total_shots: int | None = None
-    kept_shots: int | None = None
-    shot_trace: list | None = None
-    discards: int = 0
-    keep_rate: float = 1.0
+    trace: dict | None = None  # optional per-step record (states/energies/accepted/proposal_params)
 
     @property
     def acceptance_rate(self) -> float:
@@ -27,17 +23,6 @@ class MCMCResult:
     @property
     def n_steps(self) -> int:
         return len(self.energies)
-
-    @property
-    def total_shots_or_steps(self) -> int:
-        """Shots if recorded (quantum/post-selected runs), else chain steps."""
-        return self.total_shots if self.total_shots is not None else self.n_steps
-
-    @property
-    def post_selection_rate(self) -> float:
-        if self.total_shots is None or self.kept_shots is None:
-            return 1.0
-        return self.kept_shots / self.total_shots
 
 
 class MCMC:

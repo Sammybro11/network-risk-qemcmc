@@ -321,7 +321,7 @@ class App {
       `;
     }
 
-    if ($('chart-ranking')) {
+    if ($('chart-ranking') && ranking) {
       drawRanking($('chart-ranking'), ranking);
     }
 

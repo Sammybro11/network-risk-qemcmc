@@ -211,7 +211,8 @@ def _live_run(steps, chains, burn_in, beta, vuln, lam, frustration, omega,
     # ------------------------------------------------------------ figures
     print("\nfigures (live run):")
     _fig_instance(J, h, A, tiers, mu_exact, beta, spec["L"], vuln, fr_edges)
-    _fig_race(arms, mu_exact, steps, chains)
+    _fig_race(arms, mu_exact, m_exact, steps, chains)
+    _fig_freeze(arms, e_exact)
     _fig_intervention(table, opt, rand, budget)
 
     _compare_with_recorded(arms)
@@ -292,25 +293,28 @@ def _fig_instance(J, h, A, tiers, mu_exact, beta, L, vuln, fr_edges):
     _show(fig)
 
 
-def _fig_race(arms, mu_exact, steps, chains):
+def _fig_race(arms, mu_exact, m_exact, steps, chains):
     order = np.argsort(-mu_exact)
     n = len(mu_exact)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
     width = 0.8 / 3
     centers = np.arange(n)
+    ex = np.asarray(mu_exact, float)[order]
+    ex = ex / max(np.abs(ex).max(), 1e-9)
     for i, (name, color) in enumerate((("metro", METRO_C), ("quantum", QUANTUM_C))):
         if name not in arms:
             continue
         mu = np.asarray(arms[name]["mu"], float)[order]
         mu = mu / max(np.abs(mu).max(), 1e-9)
         ax1.bar(centers + (i - 0.5) * width, mu, width, label=name, color=color)
-    ex = np.asarray(mu_exact, float)[order]
-    ax1.bar(centers + (1 - 0.5) * width, ex / max(np.abs(ex).max(), 1e-9), width,
-            label="exact", color=EXACT_C, alpha=0.35)
+    # exact ranking as a dashed step line + diamonds so it reads over the bars
+    ax1.plot(centers, ex, color=EXACT_C, lw=1.8, ls="--", marker="D", ms=5,
+             zorder=5, label="exact")
     ax1.set_xticks(centers)
     ax1.set_xticklabels([str(i) for i in order])
     ax1.set_ylabel(r"$\mu_j$ (normalised)")
-    ax1.set_title("widening ranking vs exact", fontsize=10)
+    ax1.set_title("widening ranking: samplers (bars) vs exact (dashed diamonds)",
+                  fontsize=10)
     ax1.legend(fontsize=8, frameon=False)
 
     for name, color in (("metro", METRO_C), ("quantum", QUANTUM_C)):
@@ -318,12 +322,49 @@ def _fig_race(arms, mu_exact, steps, chains):
             continue
         e = np.mean([r.energies for r in arms[name]["results"]], axis=0)
         ax2.plot(np.cumsum(e) / np.arange(1, len(e) + 1), color=color, lw=1.3, label=name)
+    ax2.axhline(m_exact, color=EXACT_C, ls="--", lw=1.2)
+    ax2.annotate(f"exact <E> = {m_exact:+.2f}", (0.98, m_exact),
+                 xycoords=("axes fraction", "data"), ha="right", va="bottom",
+                 fontsize=8, color=EXACT_C)
     ax2.set_xlabel("chain step")
     ax2.set_ylabel("cumulative mean energy")
     ax2.set_title(f"equilibration ({steps} steps x {chains} chain, "
                   "both start all-free-flowing)", fontsize=10)
     ax2.legend(fontsize=8, frameon=False)
     fig.suptitle("LIVE race: classical MH vs QeMCMC", fontsize=11)
+    _show(fig)
+
+
+def _fig_freeze(arms, e_exact):
+    """The freezing story: running-window magnetization per arm (a frozen
+    chain sits flat in one basin; a mixed chain hops between basins), plus
+    each arm's running mean energy gap to the exact Boltzmann value."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
+    win = 200
+    for name, color in (("metro", METRO_C), ("quantum", QUANTUM_C)):
+        if name not in arms:
+            continue
+        res = arms[name]["results"]
+        m = np.mean([r.states.mean(axis=1) for r in res], axis=0)
+        km = np.ones(min(win, len(m))) / min(win, len(m))
+        ax1.plot(np.convolve(m, km, mode="valid"), color=color, lw=1.1, label=name)
+        e = np.mean([r.energies for r in res], axis=0)
+        ke = np.ones(min(win, len(e))) / min(win, len(e))
+        ax2.plot(np.convolve(e, ke, mode="valid") - e_exact, color=color,
+                 lw=1.1, label=name)
+    ax1.set_xlabel("chain step")
+    ax1.set_ylabel("magnetization (200-step mean)")
+    ax1.set_title("where does each chain sit? flat = frozen in one basin",
+                  fontsize=10)
+    ax1.legend(fontsize=8, frameon=False)
+    ax2.axhline(0, color=EXACT_C, ls="--", lw=1.2)
+    ax2.annotate("exact <E>", (0.99, 0), xycoords=("axes fraction", "data"),
+                 ha="right", va="bottom", fontsize=8, color=EXACT_C)
+    ax2.set_xlabel("chain step")
+    ax2.set_ylabel("energy above exact Boltzmann (200-step mean)")
+    ax2.set_title("how far from equilibrium? 0 = fully mixed", fontsize=10)
+    ax2.legend(fontsize=8, frameon=False)
+    fig.suptitle("LIVE: why classical MH freezes and QeMCMC does not", fontsize=11)
     _show(fig)
 
 
@@ -340,8 +381,13 @@ def _fig_intervention(table, opt, rand, budget):
                       METRO_C if name == "metro" else
                       QUANTUM_C if name == "quantum" else
                       BASE_COLORS.get(name, "#888")))
-    ax.bar(x + (len(names) - 0.5) * width, [opt[k] for k in ks], width,
-           label="optimum", color="#2e7d32")
+    # optimum as a dashed span over each K group, not a bar glued to the
+    # next K's cluster
+    opt_lo = x - (len(names) - 1) / 2 * width - width / 2
+    opt_hi = x + (len(names) - 1) / 2 * width + width / 2
+    for i, k in enumerate(ks):
+        ax.plot([opt_lo[i], opt_hi[i]], [opt[k], opt[k]], color="#2e7d32",
+                lw=2.2, ls="--", zorder=5, label="exact optimum" if i == 0 else None)
     ax.plot(x, [rand[k] for k in ks], ":", color="#3A4B59", marker="x",
             label="random", lw=1.4)
     ax.set_xticks(x)

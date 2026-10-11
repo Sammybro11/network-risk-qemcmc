@@ -8,6 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+
+  <!-- KaTeX for the landing-page equations; deferred so it runs before main.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
   
   <link rel="stylesheet" href="main.css" />
   <script type="module" src="main.js"></script>
@@ -34,57 +39,96 @@
           changes what the couplings mean.
         </p>
 
-        <div class="pitch-grid">
-          <article class="pitch">
-            <h2>The problem</h2>
-            <p>
-              Risk models usually assume nodes fail independently. Real networks do not:
-              one failure propagates to whatever it is coupled to. Modelling the
-              <em>full correlated</em> failure distribution over <em>n</em> nodes costs
-              2<sup>n</sup> configurations: intractable past a few dozen nodes. And the
-              quantity a decision-maker needs is a distribution
-              (<em>how likely is a catastrophic multi-node cascade at this stress
-              level?</em>), not a single worst-case configuration.
-            </p>
-          </article>
+        <div class="theory">
+          <h2>The model</h2>
+          <p>
+            Every node carries a binary state \( z_i = \pm 1 \): operating or failed.
+            Failure propagates along pairwise couplings \( J_{ij} \), each node has an
+            intrinsic vulnerability \( h_i \), and the aggregate stress level enters as a
+            temperature \( 1/\beta \). That is the complete specification of an Ising
+            model on the network:
+          </p>
+          <div class="eq">
+            $$ H(z) \;=\; \tfrac{1}{2} \sum_{i,j} J_{ij}\, z_i z_j \;+\; \sum_i h_i z_i,
+            \qquad
+            P(z) \;=\; \frac{e^{-\beta H(z)}}{Z}, \qquad
+            Z \;=\; \sum_{z \in \{\pm 1\}^n} e^{-\beta H(z)} $$
+          </div>
+          <p>
+            Nothing in this structure is domain specific. If a system has units that can
+            fail, edges along which failure propagates, and a stress level, it is this
+            model; only the reading of \( J_{ij} \) changes. The grid further down lists
+            eight domains that share it, from financial contagion to rush-hour traffic.
+          </p>
 
-          <article class="pitch">
-            <h2>One encoding covers all of it</h2>
-            <p>
-              Binary node state + pairwise couplings + a longitudinal field is an Ising
-              model: <strong>H(z) = ½·zᵀJz + hᵀz</strong>, with
-              <strong>P(z) ∝ e<sup>−βH(z)</sup></strong>. Nothing in that structure is
-              domain-specific. If your system has nodes that can fail, edges along which
-              failure propagates, and a stress level, it <em>is</em> this model; only the
-              meaning of J<sub>ij</sub> changes.
-            </p>
-          </article>
+          <h2>Why the exact answer is out of reach</h2>
+          <p>
+            The normaliser \( Z \) is a sum over \( 2^n \) configurations, and every
+            question a decision-maker asks is an expectation under \( P(z) \): the
+            probability that more than \( k \) institutions default together, the full
+            covariance matrix, the marginal effect of stabilising one node. Exact
+            enumeration is feasible at the sizes on this page (\( n \le 12 \), a few
+            thousand states, re-enumerated in your browser for the ranking panel) and becomes
+            hopeless as \( n \) grows past a few dozen. Sampling is the only general
+            route, and the quantity that ranks interventions is exactly the one naive
+            sampling measures worst.
+          </p>
 
-          <article class="pitch">
-            <h2>Why classical sampling is not enough</h2>
-            <p>
-              The decision quantity is the susceptibility
-              <strong>χ<sub>ij</sub> = β·Cov(z<sub>i</sub>, z<sub>j</sub>)</strong>: by
-              fluctuation-dissipation it is exactly ∂⟨z<sub>i</sub>⟩/∂h<sub>j</sub>, so its
-              column mean <em>is</em> the marginal value of intervening at node&nbsp;j. But
-              near a tipping point the distribution has two deep basins. Single-spin
-              Metropolis sticks in whichever one it started in, so its covariance, and the
-              whole intervention ranking built on it, collapses.
-            </p>
-          </article>
+          <h2>The quantity that decides</h2>
+          <p>
+            An intervention is a field edit: stabilising node \( j \) by amount \( \omega
+            \) means \( h_j \to h_j - \omega \). Its value is the response of \( \langle
+            z_i \rangle \) to that edit, and the fluctuation-dissipation relation
+            identifies the response with a covariance:
+          </p>
+          <div class="eq">
+            $$ \chi_{ij} \;=\; \frac{\partial \langle z_i \rangle}{\partial h_j}
+            \;=\; \beta\, \mathrm{Cov}(z_i, z_j) $$
+          </div>
+          <p>
+            So the whole decision problem reduces to one estimation task: sample \( P(z)
+            \) well enough that the covariances \( \chi_{ij} \) come out with the right
+            sign and roughly the right size. Average \( \chi_{ij} \) over \( i \) and you
+            have the marginal value of intervening at \( j \); sort those means and you
+            have the intervention ranking.
+          </p>
 
-          <article class="pitch">
-            <h2>What QeMCMC does</h2>
-            <p>
-              A quantum processor <em>proposes</em> moves; the classical Metropolis-Hastings
-              test accepts them, so the chain still converges to the exact Boltzmann
-              distribution, regardless of circuit noise, since the chain is classical
-              between steps. Evolving under
-              (1−γ)·α·H<sub>prob</sub> + γ·Σ<sub>j</sub>X<sub>j</sub> gives proposals far
-              away in Hamming distance but close in energy: the chain tunnels between
-              basins instead of diffusing between them.
-            </p>
-          </article>
+          <h2>Where classical sampling stalls</h2>
+          <p>
+            Single-spin Metropolis proposes flipping one node at a time and accepts with
+          </p>
+          <div class="eq">
+            $$ A(z \to z') \;=\; \min\!\big( 1,\; e^{-\beta\,[\,H(z') - H(z)\,]} \big) $$
+          </div>
+          <p>
+            which converges to \( P(z) \) exactly. The difficulty is mixing time. Near a
+            tipping point \( P(z) \) has two deep basins, most nodes healthy and most
+            nodes failed, separated by a free-energy barrier. Single-spin moves that
+            cross the barrier are exponentially rare, so within any realistic budget the
+            chain sits in whichever basin it started in, and covariances estimated inside
+            one basin give a ranking that is wrong in exactly the cases that matter.
+          </p>
+
+          <h2>What QeMCMC changes</h2>
+          <p>
+            QeMCMC changes the proposal and nothing else. A quantum circuit evolves under
+            the Trotterised Hamiltonian
+          </p>
+          <div class="eq">
+            $$ H_{\mathrm{prop}} \;=\; (1-\gamma)\,\alpha\, H_{\mathrm{prob}}
+            \;+\; \gamma \sum_j X_j $$
+          </div>
+          <p>
+            and its measurement is handed to the same classical Metropolis test above.
+            That test is what keeps the chain exact: whatever noise the hardware injects,
+            the stationary distribution is still \( P(z) \), because bad proposals are
+            simply rejected. The bit-flip term in that mix lets a proposal move far in
+            Hamming distance while staying close in energy, so the chain tunnels between
+            basins instead of diffusing over the barrier. The measured advantage is a
+            smaller iteration budget to reach a trustworthy \( \chi \); nothing is
+            claimed about wall-clock time, and the quantum arm on this page is an exact
+            statevector simulation.
+          </p>
         </div>
 
         <div class="mapping-block">
@@ -95,29 +139,29 @@
             </thead>
             <tbody>
               <tr>
-                <td>spin z<sub>i</sub> = ±1</td>
+                <td>\( z_i = \pm 1 \)</td>
                 <td>node survives / fails</td>
-                <td>one configuration = one complete scenario</td>
+                <td>one configuration is one complete scenario</td>
               </tr>
               <tr>
-                <td>coupling J<sub>ij</sub></td>
+                <td>\( J_{ij} \)</td>
                 <td>contagion strength between i and j</td>
                 <td>the correlated failure the model exists to capture</td>
               </tr>
               <tr>
-                <td>field h<sub>i</sub></td>
+                <td>\( h_i \)</td>
                 <td>intrinsic vulnerability of node i</td>
                 <td>shifts marginal failure odds regardless of neighbours</td>
               </tr>
               <tr>
-                <td>temperature 1/β</td>
+                <td>\( 1/\beta \)</td>
                 <td>aggregate environmental stress</td>
                 <td>low: worst-case cascades dominate; high: failures look random</td>
               </tr>
               <tr>
-                <td>χ<sub>ij</sub> = β·Cov(z<sub>i</sub>, z<sub>j</sub>)</td>
+                <td>\( \chi_{ij} = \beta\, \mathrm{Cov}(z_i, z_j) \)</td>
                 <td>how much stabilising j helps i</td>
-                <td>fluctuation-dissipation ⇒ the intervention ranking</td>
+                <td>fluctuation-dissipation makes it the intervention ranking</td>
               </tr>
             </tbody>
           </table>
@@ -133,12 +177,12 @@
           </p>
           <ol class="shock-list">
             <li>
-              <strong>Field kick.</strong> Δh<sub>i</sub> on the exposed nodes: a storm
+              <strong>Field kick.</strong> \( \Delta h_i \) on the exposed nodes: a storm
               front, a demand surge, a funding squeeze. The equilibrium shifts; the cascade
               is the response.
             </li>
             <li>
-              <strong>Structure change.</strong> A coupling J<sub>ij</sub> appears,
+              <strong>Structure change.</strong> A coupling \( J_{ij} \) appears,
               strengthens or breaks: a link severed, an exposure grown.
             </li>
             <li>
@@ -147,10 +191,10 @@
             </li>
           </ol>
           <p class="shock-note">
-            An intervention is the same operation with the opposite sign:
-            h<sub>j</sub> → h<sub>j</sub> − ω. That is why a bank bailout and a road
-            widening are literally the same edit to the same object, and why the sampler
-            never has to know which domain it is in.
+            An intervention is the same operation with the opposite sign,
+            \( h_j \to h_j - \omega \). A bank bailout and a road widening are the same
+            edit to the same object, which is why the sampler never has to know which
+            domain it is in.
           </p>
         </div>
 
@@ -162,7 +206,7 @@
             needs before its intervention ranking matches the exact answer. The quantum arm
             here is an exact statevector simulation, so
             <strong>no wall-clock speedup is claimed</strong>. Per-step cost is reported
-            alongside every result, and ground truth comes from exact 2<sup>n</sup>
+            alongside every result, and ground truth comes from exact \( 2^n \)
             enumeration, in your browser. The advantage is also empirical and small-scale:
             Layden et al. demonstrated it on 27 qubits at n = 10.
           </p>
@@ -174,8 +218,8 @@
       <h2 class="chooser-title">Where the same model applies</h2>
       <p class="chooser-sub">
         Each of these is the same Hamiltonian with a different reading of
-        J<sub>ij</sub>. We built two of them; the rest need a coupling matrix, not new
-        algorithm.
+        J<sub>ij</sub>. Two are built; the rest need only a coupling matrix and a
+        vocabulary.
       </p>
       <div class="domain-grid" id="domain-grid"></div>
       <p class="chooser-foot">

@@ -4,8 +4,8 @@ Browser-only companion to the `risk_qemcmc` Python package. The pitch is the
 general model: any system whose risk is dominated by pairwise correlated
 failure is the same Ising Hamiltonian, and each module is one recorded
 instantiation of it: a network where a quantum proposal (QeMCMC) races classical
-Metropolis to learn the intervention susceptibility, plus a policy lab that
-scores intervention budgets by exact enumeration.
+Metropolis to learn the intervention susceptibility, scored against exact
+enumeration.
 
 Pure JavaScript, no build step, no backend.
 
@@ -13,16 +13,19 @@ Pure JavaScript, no build step, no backend.
 
 The page is two views behind a hash route:
 
-- `#/`: **landing**, pitched at the general model rather than at finance: the
-  problem (correlated failure, 2^n configurations, the deliverable is a
-  distribution), the claim that one Hamiltonian covers every domain with a
-  per-term mapping table, why classical sampling is not enough (two basins, a
-  frozen chain's covariance collapses), what QeMCMC does, how a shock enters
-  (the three diagonal encodings: field kick, structure change, seed pinning,
-  with an intervention as the same edit sign-flipped), and what is *not*
-  claimed (no wall-clock speedup; the quantum arm is simulated). Then a grid of
-  eight candidate domains (the two implemented ones are clickable), and a card
-  per scenario with its steps-to-correct-ranking headline.
+- `#/`: **landing**, pitched at the general model rather than at finance: a
+  derivation-style essay with the actual equations typeset by KaTeX (the Ising
+  Hamiltonian and Boltzmann distribution, why exact enumeration dies at 2^n, the
+  susceptibility `chi_ij = beta Cov(z_i, z_j)` that fluctuation-dissipation turns
+  into the intervention ranking, the Metropolis acceptance test and where its
+  mixing time fails, and the Trotterised proposal Hamiltonian QeMCMC substitutes),
+  a per-term mapping table, how a shock enters (the three diagonal encodings:
+  field kick, structure change, seed pinning, with an intervention as the same
+  edit sign-flipped), and what is *not* claimed (no wall-clock speedup; the
+  quantum arm is simulated). Then a 4x2 grid of eight candidate domains (the two
+  implemented ones are clickable), and a card per scenario with its
+  steps-to-correct-ranking headline. KaTeX comes from a CDN; if that is
+  unreachable the page falls back to raw TeX in the text.
 - `#/<scenario-id>`: **dashboard** for one scenario, with a scenario switcher
   at the top of the page and an "All scenarios" link in the header. The id is in
   the URL, so a particular scenario is linkable and the back button works.
@@ -34,9 +37,9 @@ Four scenarios, all backed by recorded 20,000-step x 4-chain runs:
 | module | problem | n | intervention |
 | :--- | :--- | --: | :--- |
 | Tight Conglomerate Core | finance | 12 | bailout |
+| Rush-Hour Gridlock | traffic | 9 | road widening |
 | Fragile Periphery, Hidden Amplifier | finance | 12 | bailout |
 | Rival Alliances | finance | 12 | bailout |
-| Rush-Hour Gridlock | traffic | 9 | road widening |
 
 Finance and traffic differ only in vocabulary: a bailout and a widening are the
 same stabilising field edit `h_j -> h_j - omega`, so one adapter
@@ -44,19 +47,18 @@ same stabilising field edit `h_j -> h_j - omega`, so one adapter
 
 ## Panels
 
-1. **Network:** node size is the exact susceptibility (the answer both
-   samplers are chasing), `Q` marks the quantum arm's top pick, cascade seeds
-   are ringed. Click a node to send it to the policy lab.
+1. **Network:** node fill is the exact susceptibility (the answer both
+   samplers are chasing), node size is structural centrality, `Q` marks the
+   quantum arm's top pick, cascade seeds are ringed.
 2. **Sampler race:** each chain's running mean energy against the exact
-   thermal mean, and raw magnetization where basin crossings show as jumps.
+   thermal mean ⟨E⟩, and raw magnetization against the exact ⟨m⟩ where basin
+   crossings show as jumps.
 3. **Mechanism:** spins flipped per accepted move (single-spin Metropolis
    cannot exceed 1; the Trotterised proposal flips whole regions) and where
    each chain actually spent its time.
-4. **Ranking fidelity:** aggregate susceptibility mu per node vs exact truth
-   and the structure-only baselines (strength, eigenvector, DebtRank).
-5. **Policy lab:** pick up to K nodes; the exact Boltzmann distribution is
-   re-enumerated in-browser under your intervention, so the regret against the
-   exhaustive optimum is exact, not estimated.
+4. **Ranking fidelity** (full width, under the mechanism panel): aggregate
+   susceptibility mu per node vs exact truth and the structure-only baselines
+   (strength, eigenvector, DebtRank).
 
 ## Data flow
 

@@ -22,7 +22,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-
 from scenarios_common import build_instance
 
 REPO = Path(__file__).resolve().parents[1]
@@ -31,8 +30,8 @@ OUT_DIR = REPO / "webapp" / "data" / "scenarios"
 # The narrative lives with the qollab gallery; the webapp reuses it verbatim so
 # the two front-ends never tell different stories about the same run.
 sys.path.insert(0, str(REPO / "qollab_lab"))
-from py.gallery_text import HOW_TO_READ, _STORIES  # noqa: E402
-from py.scenarios_data import load as load_digests  # noqa: E402
+from py.gallery_text import _STORIES, HOW_TO_READ
+from py.scenarios_data import load as load_digests
 
 GEN_ND = 4
 
@@ -40,12 +39,18 @@ GEN_ND = 4
 # tightened. The webapp still has to state them, because it reports the same
 # prefix-truncated ladder and the same simulated quantum arm.
 CAVEATS = [
-    "convergence ladders are prefix-truncated versions of the SAME chains "
-    "(within-run convergence), not independent restarts",
-    "wall-clock cost differs strongly between arms (ms/step reported); the "
-    "headline is steps-to-correct-ranking, the iteration budget",
-    "the recorded quantum arm ran on an unseeded simulator, so numbers vary "
-    "run-to-run; the reported ranking gaps are far larger than that spread",
+    (
+        "convergence ladders are prefix-truncated versions of the SAME chains "
+        "(within-run convergence), not independent restarts"
+    ),
+    (
+        "wall-clock cost differs strongly between arms (ms/step reported); the "
+        "headline is steps-to-correct-ranking, the iteration budget"
+    ),
+    (
+        "the recorded quantum arm ran on an unseeded simulator, so numbers vary "
+        "run-to-run; the reported ranking gaps are far larger than that spread"
+    ),
 ]
 
 

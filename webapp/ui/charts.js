@@ -1,5 +1,5 @@
 // Minimal canvas-2D charts (no dependencies): line traces with an exact
-// reference line, per-bank ranking bars, and grouped bailout-regret bars.
+// reference line, and per-bank ranking bars.
 
 const COLORS = {
   quantum: '#62B6CF',
@@ -9,16 +9,11 @@ const COLORS = {
   text: '#D6DBDE',
   healthy: '#4A5D6E',
   failed: '#B9362D',
-  strength: '#6A7B89',
-  eigenvector: '#5A6B79',
-  debtrank: '#4A5D6E',
-  'random-mean': '#3A4B59',
+  strength: '#8CA0AF',
+  eigenvector: '#7B8FA0',
+  debtrank: '#6E8394',
   'quantum-chi': '#62B6CF',
   'metro-chi': '#F08A73',
-  // sequential (re-ranked between doses) arms: same hue, lighter
-  'exact-seq': '#D8DDE1',
-  'quantum-seq': '#9FD8E8',
-  'metro-seq': '#F7BDAE',
 };
 
 // Resize the backing store ONLY when it actually changes. Assigning
@@ -51,7 +46,16 @@ function axes(ctx, w, h, pad) {
   ctx.stroke();
 }
 
-export function drawTraces(canvas, series, { reference, yLabel = '' }) {
+// Text drawn over the data. Labels painted before the series get overpainted
+// by the magnetization trace, which fills the whole plot area, so every
+// annotation goes on last with an opaque plate behind it.
+function plate(ctx, x, y, w, h) {
+  ctx.fillStyle = 'rgba(23, 27, 32, 0.85)';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = COLORS.text;
+}
+
+export function drawTraces(canvas, series, { reference, yLabel = '', refLabel = 'exact' }) {
   // series: [{ name, color, ys }] plotted against step index. A NaN entry is
   // a deliberate gap (chain boundary), not data: it breaks the stroke so four
   // concatenated chains do not read as one continuous walk.
@@ -72,21 +76,8 @@ export function drawTraces(canvas, series, { reference, yLabel = '' }) {
   ctx.textAlign = 'right';
   ctx.fillText(hi.toFixed(1), pad.l - 6, Y(hi) + 4);
   ctx.fillText(lo.toFixed(1), pad.l - 6, Y(lo) + 4);
-  if (yLabel) { ctx.textAlign = 'left'; ctx.fillText(yLabel, pad.l + 4, pad.t + 10); }
 
-  if (reference !== undefined) {
-    ctx.strokeStyle = COLORS.exact;
-    ctx.setLineDash([5, 4]);
-    ctx.beginPath();
-    ctx.moveTo(pad.l, Y(reference));
-    ctx.lineTo(w - pad.r, Y(reference));
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = COLORS.exact;
-    ctx.textAlign = 'right';
-    ctx.fillText('exact', w - pad.r - 2, Y(reference) - 4);
-  }
-
+  // Data first; every annotation that shares its pixels goes on top.
   for (const s of series) {
     ctx.strokeStyle = s.color;
     ctx.globalAlpha = s.alpha ?? 1;
@@ -101,6 +92,29 @@ export function drawTraces(canvas, series, { reference, yLabel = '' }) {
     });
     ctx.stroke();
     ctx.globalAlpha = 1;
+  }
+
+  if (reference !== undefined) {
+    ctx.strokeStyle = COLORS.exact;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, Y(reference));
+    ctx.lineTo(w - pad.r, Y(reference));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '11px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'right';
+    const tw = ctx.measureText(refLabel).width;
+    plate(ctx, w - pad.r - tw - 8, Y(reference) - 15, tw + 8, 14);
+    ctx.fillText(refLabel, w - pad.r - 2, Y(reference) - 4);
+  }
+
+  if (yLabel) {
+    ctx.textAlign = 'left';
+    const tw = ctx.measureText(yLabel).width;
+    plate(ctx, pad.l + 2, pad.t, tw + 8, 16);
+    ctx.fillText(yLabel, pad.l + 4, pad.t + 10);
   }
 
   ctx.textAlign = 'left';
@@ -122,7 +136,9 @@ export function drawRanking(canvas, { muExact, arms, strategies, tiers }) {
   const entries = Object.entries({ exact: muExact, ...arms, ...strategies });
   const order = muExact.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).map(([, i]) => i);
   const maxV = Math.max(...entries.flatMap(([, v]) => v.map(Math.abs)), 1e-9);
-  const pad = { l: 74, r: 12, t: 18, b: 26 };
+  // Sits under the mechanism panel, spanning the full grid width, so there is
+  // room for both 12-16 rows and a wider left gutter for the node labels.
+  const pad = { l: 96, r: 16, t: 18, b: 26 };
   const bandH = (h - pad.t - pad.b) / n;
   const barH = Math.min(5, (bandH - 3) / entries.length);
 
@@ -144,49 +160,12 @@ export function drawRanking(canvas, { muExact, arms, strategies, tiers }) {
   ctx.textAlign = 'left';
   let lx = pad.l;
   for (const [name] of entries) {
+    // Swatch in the series colour, text always light: the baseline colours are
+    // dark slate by design and unreadable as text on the panel background.
     ctx.fillStyle = COLORS[name] || COLORS.exact;
     ctx.fillRect(lx, h - 14, 8, 3);
+    ctx.fillStyle = COLORS.text;
     ctx.fillText(name, lx + 12, h - 8);
     lx += 12 + ctx.measureText(name).width + 16;
-  }
-}
-
-export function drawRegret(canvas, { table, optimal, budget }) {
-  // Grouped bars: regret = m_opt - m(S) per strategy per budget K.
-  const { ctx, w, h } = setup(canvas);
-  ctx.clearRect(0, 0, w, h);
-  const names = Object.keys(table);
-  const Ks = Array.from({ length: budget }, (_, i) => String(i + 1));
-  const regrets = names.map((name) =>
-    Ks.map((k) => Math.max(0, optimal[k].m - table[name][k].m))
-  );
-  const maxR = Math.max(...regrets.flat(), 1e-9);
-  const pad = { l: 44, r: 12, t: 12, b: 44 };
-  const groupW = (w - pad.l - pad.r) / Ks.length;
-  const barW = Math.min(16, (groupW - 14) / names.length);
-
-  axes(ctx, w, h, pad);
-  ctx.font = '10px "IBM Plex Mono", monospace';
-  Ks.forEach((k, g) => {
-    const x0 = pad.l + g * groupW + 7;
-    names.forEach((name, i) => {
-      const r = regrets[i][g] / maxR;
-      const bh = r * (h - pad.t - pad.b);
-      ctx.fillStyle = COLORS[name] || COLORS.exact;
-      ctx.fillRect(x0 + i * barW, h - pad.b - bh, barW - 2, bh);
-    });
-    ctx.fillStyle = COLORS.text;
-    ctx.textAlign = 'center';
-    ctx.fillText(`K=${k}`, pad.l + g * groupW + groupW / 2, h - pad.b + 14);
-  });
-
-  ctx.textAlign = 'left';
-  let lx = pad.l;
-  const ly = h - 14;
-  for (const name of names) {
-    ctx.fillStyle = COLORS[name] || COLORS.exact;
-    ctx.fillRect(lx, ly, 8, 3);
-    ctx.fillText(name, lx + 12, ly + 4);
-    lx += 12 + ctx.measureText(name).width + 14;
   }
 }

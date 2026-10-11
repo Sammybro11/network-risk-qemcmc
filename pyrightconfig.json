@@ -1,0 +1,13 @@
+{
+  // Keep the checker in pyright's basic mode: experiments/ and qollab_lab/
+  // are research scripts without type annotations, and stricter modes bury
+  // the useful signal (unresolved imports) under thousands of unknown-type
+  // warnings.
+  "typeCheckingMode": "basic",
+  // The experiments/ scripts are run as `uv run python experiments/<script>.py`
+  // from the repo root, so they import `scenarios_common` as a flat module;
+  // export_webapp_scenarios.py additionally puts qollab_lab/ on sys.path to
+  // reach py.gallery_text and py.scenarios_data. Neither root is on pyright's
+  // default search path, so declare both here.
+  "extraPaths": [".", "experiments", "qollab_lab"]
+}

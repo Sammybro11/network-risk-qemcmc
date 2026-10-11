@@ -39,8 +39,6 @@ export class Network2D {
     this.tiers = tiers;
     this.n = tiers.length;
     this.ctx = canvas.getContext('2d');
-    this.selected = new Set();
-    this.onNodeClick = null;
     this.mark = mark;
     this.seeds = new Set(seeds);
     this._failed = new Array(this.n).fill(false);
@@ -49,8 +47,6 @@ export class Network2D {
     this.tierOrder = tierOrder || [...new Set(tiers)];
     this._tierIdx = (i) => Math.max(0, this.tierOrder.indexOf(tiers[i]));
 
-    // positions arrive normalised to the unit square; y is flipped so the
-    // exported layout (y up) draws the same way on canvas (y down).
     this._nodeAt = positions.map(([x, y], i) => ({ bank: i, x, y: 1 - y }));
 
     // Rank percentile, not min-max. Both quantities are heavy-tailed: one or
@@ -83,23 +79,9 @@ export class Network2D {
       }
     this.hasFrustration = this._edges.some((e) => e.frustrated);
 
-    canvas.addEventListener('pointerdown', (ev) => this._pick(ev));
     this._reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const loop = () => { this._draw(); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
-  }
-
-  // z_i = +1 healthy, -1 defaulted
-  setStates(z) {
-    for (let k = 0; k < this.n; k++) {
-      const failed = z[this._nodeAt[k].bank] < 0;
-      if (failed && !this._failed[k] && !this._reduced) this._pulse[k] = 1;
-      this._failed[k] = failed;
-    }
-  }
-
-  setSelected(set) {
-    this.selected = new Set(set);
   }
 
   _geometry() {
@@ -166,7 +148,7 @@ export class Network2D {
       ctx.arc(x, y, r, 0, 2 * Math.PI);
       ctx.fill();
 
-      // tier as an outline dash pattern -- three fill shades at this node size
+      // tier as an outline dash pattern: three fill shades at this node size
       // were indistinguishable, so the channel was wasted.
       ctx.strokeStyle = 'rgba(234,230,220,0.5)';
       ctx.lineWidth = 1.2;
@@ -190,13 +172,6 @@ export class Network2D {
         ctx.textAlign = 'left';
         ctx.fillText(tag, x + r + 4, y - r);
       }
-      if (this.selected.has(node.bank)) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, r + 3.5, 0, 2 * Math.PI);
-        ctx.stroke();
-      }
       // Label contrast has to follow the fill, which now spans dark slate to
       // bright cyan; a fixed dark label vanished on the low end of the ramp.
       ctx.fillStyle = (failed || this._truth[i] > 0.45) ? '#171B20' : '#C9D1D6';
@@ -204,18 +179,6 @@ export class Network2D {
       ctx.textAlign = 'center';
       ctx.fillText(i, x, y + 3);
     }
-  }
-
-  _pick(ev) {
-    const rect = this.canvas.getBoundingClientRect();
-    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
-    const { xy } = this._geometry();
-    let best = -1, bestD = 18 * 18;
-    xy.forEach(([x, y], k) => {
-      const d = (x - px) ** 2 + (y - py) ** 2;
-      if (d < bestD) { bestD = d; best = k; }
-    });
-    if (best >= 0 && this.onNodeClick) this.onNodeClick(this._nodeAt[best].bank);
   }
 }
 

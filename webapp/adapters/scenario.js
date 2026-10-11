@@ -2,13 +2,13 @@
 // experiments/export_webapp_scenarios.py carries both the recorded 20k-step
 // run (fidelity, traces, histograms, intervention tables, convergence ladder)
 // and the instance it ran on (J, h, A), so the same file drives the replay,
-// the exact re-enumeration and the intervention lab.
+// the exact re-enumeration and the ranking panel.
 //
 // Finance and traffic scenarios differ only in vocabulary: a bailout is a
 // stabilising field edit h_j -> h_j - omega, and so is a road widening. The
 // LEXICON below is the whole difference.
 
-import { groundTruth, optimalBailouts, bailoutValue, cascadeClosure } from '../ui/physics.js';
+import { groundTruth, optimalBailouts, cascadeClosure } from '../ui/physics.js';
 import { topK } from '../ui/stats.js';
 
 const LEXICON = {
@@ -38,7 +38,7 @@ export class ScenarioAdapter {
     this.name = `${entry.title} (${entry.problem})`;
 
     this.schema = { inputs: [], interventions: [] };
-    this.capabilities = ['network', 'timeseries', 'mechanism', 'ranking', 'intervention', 'exact_reference'];
+    this.capabilities = ['network', 'timeseries', 'mechanism', 'ranking', 'exact_reference'];
     this.algorithms = ['QeMCMC', 'Metropolis'];
 
     this.data = null;
@@ -59,6 +59,8 @@ export class ScenarioAdapter {
     // numbers; it reproduces the Python values to ~1e-14 and keeps the page
     // honest if the instance rebuild ever drifts.
     this.exact = groundTruth(this.J, this.h, this.beta);
+    // Still needed by getSolution: the recorded payload ships the optimal m
+    // per budget but not the winning set.
     this.optimal = optimalBailouts(this.J, this.h, this.beta, this.budget, this.omega);
     this.cascadeFailed = cascadeClosure(this.A, this.spec.theta, d.cascade.seeds);
 
@@ -90,8 +92,7 @@ export class ScenarioAdapter {
         title: `01. ${this.spec.problem === 'traffic' ? 'Road grid' : 'Dependency network'}`,
         hint: `Colour is the equilibrium answer, size is what structural centrality would ` +
           `tell you: a large dark node is well-connected but not worth ${lex.action}, ` +
-          `and a small bright node is the one everyone else misses. ` +
-          `Click a node to add it to the ${lex.action} lab.`,
+          `and a small bright node is the one everyone else misses.`,
         data: {
           A: this.A,
           J: this.J,
@@ -110,7 +111,7 @@ export class ScenarioAdapter {
         type: 'timeseries',
         title: '02. Sampler race: convergence and basin crossing',
         hint: `Left: each chain's running mean energy against the exact thermal mean ` +
-          `(dashed). A chain that settles off the dashed line is sampling the wrong ` +
+          `⟨E⟩ (dashed). A chain that settles off the dashed line is sampling the wrong ` +
           `distribution. Right: raw magnetization per chain; basin crossings are the ` +
           `jumps between plateaus. Gaps separate the ${this.spec.chains} chains.`,
       },
@@ -128,15 +129,8 @@ export class ScenarioAdapter {
         title: `04. ${lex.Action} ranking fidelity`,
         hint: `Aggregate susceptibility mu per ${lex.unit}, the marginal utility of ` +
           `${lex.action} by fluctuation-dissipation, against exact truth and the ` +
-          `structure-only baselines.`,
-      },
-      {
-        id: 'intervention',
-        type: 'intervention',
-        title: `05. ${lex.Action} policy laboratory`,
-        hint: `Pick up to K ${lex.unit}s to ${lex.verb}. The exact Boltzmann distribution ` +
-          `is re-enumerated under your intervention, so the reported regret against the ` +
-          `exhaustive optimum is exact, not estimated.`,
+          `structure-only baselines. Full width, under the mechanism panel, because ` +
+          `${this.n} bar groups need the room.`,
       },
     ];
   }
@@ -374,47 +368,6 @@ export class ScenarioAdapter {
         'Convergence ladders are prefix truncations of the same chains (within-run convergence), not independent restarts.',
       ],
     };
-  }
-
-  getInterventionConfig() {
-    // Presets are derived from the baselines this scenario actually ships
-    // (finance: strength/eigenvector/debtrank, traffic: load/...), not a
-    // hardcoded list -- the hardcoded one offered a "Strength" button on
-    // traffic scenarios, where that key does not exist.
-    const label = { 'quantum-chi': 'QeMCMC χ', 'metro-chi': 'Metro χ', debtrank: 'DebtRank' };
-    const presets = [
-      { id: 'quantum-chi', label: label['quantum-chi'] },
-      { id: 'metro-chi', label: label['metro-chi'] },
-      ...this.baselineKeys.map((k) => ({
-        id: k,
-        label: label[k] || k.charAt(0).toUpperCase() + k.slice(1),
-        // A constant score vector ranks nothing; the button would silently
-        // pick nodes 0..K-1 by tie order and report that as a strategy.
-        degenerate: this.degenerate.has(k),
-      })),
-    ];
-    return {
-      n: this.n,
-      tiers: this.data.tiers,
-      omega: this.omega,
-      budget: this.budget,
-      optimal: this.optimal,
-      lex: this.lex,
-      presets,
-      strategies: {
-        ...this.data.baselines,
-        'quantum-chi': this.data.arms.quantum.mu,
-        'metro-chi': this.data.arms.metro.mu,
-      },
-      evaluate: async (nodes) => bailoutValue(this.J, this.h, this.beta, nodes, this.omega),
-    };
-  }
-
-  getRegretConfig() {
-    const table = {};
-    for (const [name, row] of Object.entries(this.data.intervention.static_table)) table[name] = row;
-    for (const [name, row] of Object.entries(this.data.intervention.sequential_table || {})) table[name] = row;
-    return { table, optimal: this.optimal, budget: this.budget };
   }
 }
 

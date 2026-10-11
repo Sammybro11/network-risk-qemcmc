@@ -1,8 +1,7 @@
 import { Registry } from './registry.js';
 import { Network2D, rampColor } from './ui/network2d.js';
-import { drawTraces, drawRanking, drawRegret } from './ui/charts.js';
+import { drawTraces, drawRanking } from './ui/charts.js';
 import { drawFlipHist, drawBasinHist } from './ui/mechanism.js';
-import { BailoutPanel } from './ui/bailout.js';
 
 const $ = (id) => document.getElementById(id);
 const status = (msg) => { $('status').textContent = msg; };
@@ -59,7 +58,31 @@ class App {
   constructor() {
     this.currentAdapter = null;
     this.vizInstances = new Map();
+    this.katexDone = false;
     this.init();
+  }
+
+  // Render the LaTeX delimiters the landing page ships with. KaTeX loads from a
+  // CDN and auto-render runs once, after the registry fetch has built the DOM;
+  // if the CDN is unreachable the raw TeX stays visible, which is still legible.
+  renderMath() {
+    if (this.katexDone) return;
+    const render = window.renderMathInElement;
+    if (!render) {
+      // Deferred CDN script usually arrives before the JSON fetch resolves, but
+      // retry briefly rather than leaving the page in TeX source forever.
+      this.katexTries = (this.katexTries || 0) + 1;
+      if (this.katexTries <= 10) setTimeout(() => this.renderMath(), 150);
+      return;
+    }
+    this.katexDone = true;
+    render(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\(', right: '\\)', display: false },
+      ],
+      throwOnError: false,
+    });
   }
 
   async init() {
@@ -74,6 +97,7 @@ class App {
     this.renderDomains();
     this.renderLandingCards(adapters);
     this.renderSwitcher(adapters);
+    this.renderMath();
 
     $('btn-home').addEventListener('click', () => { window.location.hash = '#/'; });
     window.addEventListener('hashchange', () => this.route());
@@ -129,10 +153,8 @@ class App {
           <h3>${d.name}</h3>
           ${built ? '<span class="tag built-tag">built</span>' : ''}
         </div>
-        <dl>
-          <dt>J<sub>ij</sub></dt><dd>${d.coupling}</dd>
-          <dt>tail question</dt><dd>${d.tail}</dd>
-        </dl>
+        <p class="domain-coupling"><span class="domain-k">J<sub>ij</sub></span> = ${d.coupling}</p>
+        <p class="domain-tail">${d.tail}</p>
       `;
       grid.appendChild(el);
     }
@@ -289,6 +311,10 @@ class App {
         section.appendChild(chartsDiv);
         workspace.appendChild(section);
       } else if (viz.type === 'ranking') {
+        // Full grid width, under the mechanism panel: the per-node bar groups
+        // need the horizontal room, and a half-width cell left a hole in the
+        // layout next to it.
+        section.classList.add('panel-wide');
         const chartsDiv = document.createElement('div');
         chartsDiv.className = 'charts';
         const c = document.createElement('canvas');
@@ -296,53 +322,6 @@ class App {
         chartsDiv.appendChild(c);
         section.appendChild(chartsDiv);
         workspace.appendChild(section);
-      } else if (viz.type === 'intervention') {
-        const cfg = adapter.getInterventionConfig();
-        const lex = cfg.lex;
-        const options = Array.from({ length: cfg.budget }, (_, i) => i + 1)
-          .map((k) => `<option value="${k}"${k === cfg.budget ? ' selected' : ''}>${k}</option>`)
-          .join('');
-        section.innerHTML = `
-          <header class="panel-header">
-            <h2>${viz.title}</h2>
-            <p class="hint">${viz.hint}</p>
-          </header>
-          <div class="bailout-controls">
-            <label>Budget K
-              <select id="bailout-k">${options}</select>
-            </label>
-            <button id="bailout-clear" type="button">Clear</button>
-            <span class="preset-label">Presets:</span>
-            ${cfg.presets.map((p) => `
-              <button class="preset${p.degenerate ? ' degenerate' : ''}" data-strategy="${p.id}"
-                type="button"${p.degenerate
-                  ? ' title="This baseline is a constant on this instance, so it ranks nothing and picks the lowest indices by tie order."'
-                  : ''}>${p.label}${p.degenerate ? ' ⚠' : ''}</button>`).join('')}
-          </div>
-          <div id="bank-picker" class="bank-picker" role="group" aria-label="${lex.Unit}s"></div>
-          <div class="charts" style="padding-bottom: 0;">
-            <canvas id="chart-regret" height="150" aria-label="Intervention regret chart"></canvas>
-          </div>
-          <div id="bailout-result" class="bailout-result" role="status"></div>
-        `;
-        workspace.appendChild(section);
-
-        const panel = new BailoutPanel({
-          ...cfg,
-          onSelection: (nodes) => {
-            const net = this.vizInstances.get('network');
-            if (net) net.setSelected(nodes);
-          },
-        });
-        this.vizInstances.set('intervention', panel);
-
-        const net = this.vizInstances.get('network');
-        if (net) {
-          net.onNodeClick = (i) => {
-            const btn = $('bank-picker').children[i];
-            if (btn) btn.click();
-          };
-        }
       }
     });
   }
@@ -453,7 +432,7 @@ class App {
       t += stepFrames;
       if (t >= rData.qE.length) {
         clearInterval(this.replayTimer);
-        status('Replay finished. Inspect the mechanism panel or try the policy lab.');
+        status('Replay finished. Inspect the mechanism and ranking panels.');
         this.updateCharts();
         this.renderSolution();
         return;
@@ -472,12 +451,12 @@ class App {
     drawTraces($('chart-trace'), [
       { name: 'QeMCMC', color: '#62B6CF', ys: cut(rData.qE) },
       { name: 'Metropolis', color: '#F08A73', ys: cut(rData.mE) },
-    ], { reference: rData.exactEnergy, yLabel: 'running mean energy' });
+    ], { reference: rData.exactEnergy, refLabel: 'exact <E>', yLabel: 'running mean energy' });
 
     drawTraces($('chart-conv'), [
       { name: 'QeMCMC', color: '#62B6CF', ys: cut(rData.qM), alpha: 0.75, width: 1 },
       { name: 'Metropolis', color: '#F08A73', ys: cut(rData.mM), alpha: 0.85, width: 1 },
-    ], { reference: rData.exactM, yLabel: 'magnetization m' });
+    ], { reference: rData.exactM, refLabel: 'exact <m>', yLabel: 'magnetization m' });
   }
 
   updateCharts() {
@@ -509,10 +488,6 @@ class App {
     if ($('chart-ranking') && ranking) drawRanking($('chart-ranking'), ranking);
 
     if ($('chart-trace')) this.drawRace(adapter.getReplayData());
-
-    if ($('chart-regret') && adapter.getRegretConfig) {
-      drawRegret($('chart-regret'), adapter.getRegretConfig());
-    }
   }
 }
 

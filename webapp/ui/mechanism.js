@@ -17,6 +17,7 @@ const COLORS = {
   exact: '#C3CBD1',
   grid: '#4A545C',
   text: '#D6DBDE',
+  plate: 'rgba(23, 27, 32, 0.85)',
 };
 
 // Backing store is resized only on an actual change -- see the note in
@@ -81,12 +82,12 @@ export function drawFlipHist(canvas, { metro, quantum }) {
 
   frame(ctx, w, h, pad);
   ctx.font = '10px "IBM Plex Mono", monospace';
-  // Axis label sits above the plot and the legend in the top-right corner, so
-  // neither collides with the bars or with each other.
+  // Axis labels above the plot, legend in the top-right corner at the same
+  // height, so nothing collides with the bars.
+  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
   ctx.fillStyle = COLORS.text;
   ctx.textAlign = 'left';
   ctx.fillText('share of accepted moves', pad.l + 4, 12);
-  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
   ctx.textAlign = 'right';
   ctx.fillText(`${(maxV * 100).toFixed(0)}%`, pad.l - 5, pad.t + 8);
 
@@ -125,10 +126,10 @@ export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all f
 
   frame(ctx, w, h, pad);
   ctx.font = '10px "IBM Plex Mono", monospace';
+  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
   ctx.fillStyle = COLORS.text;
   ctx.textAlign = 'left';
   ctx.fillText('time spent', pad.l + 4, 12);
-  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
   ctx.textAlign = 'right';
   ctx.fillText(`${(maxV * 100).toFixed(0)}%`, pad.l - 5, pad.t + 8);
 
@@ -144,6 +145,7 @@ export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all f
   if (exactM !== undefined) {
     const x = X(exactM);
     ctx.strokeStyle = COLORS.exact;
+    ctx.lineWidth = 1.2;
     ctx.setLineDash([4, 3]);
     ctx.beginPath();
     ctx.moveTo(x, pad.t);
@@ -151,13 +153,18 @@ export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all f
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = COLORS.exact;
-    // Label above the axis title row, and nudged so a line near the left edge
-    // (m close to -1) does not clip off-canvas.
+    // On an opaque plate above the axis-title row, and nudged so a line near
+    // the left edge (m close to -1) does not clip off-canvas; the histogram
+    // bars can reach the top of the plot, so bare text gets overpainted.
     ctx.textAlign = 'center';
+    ctx.font = '10px "IBM Plex Mono", monospace';
     const label = `exact m = ${exactM.toFixed(2)}`;
     const half = ctx.measureText(label).width / 2;
     const lx = Math.min(Math.max(x, pad.l + half + 2), w - pad.r - half - 2);
-    ctx.fillText(label, lx, pad.t - 6);
+    ctx.fillStyle = COLORS.plate;
+    ctx.fillRect(lx - half - 3, pad.t - 17, 2 * half + 6, 13);
+    ctx.fillStyle = COLORS.exact;
+    ctx.fillText(label, lx, pad.t - 7);
   }
 
   ctx.fillStyle = COLORS.text;
@@ -165,8 +172,6 @@ export function drawBasinHist(canvas, { metro, quantum, exactM, loLabel = 'all f
   ctx.fillText(loLabel, pad.l, h - pad.b + 12);
   ctx.textAlign = 'right';
   ctx.fillText(hiLabel, w - pad.r, h - pad.b + 12);
-  ctx.fillStyle = COLORS.text;
   ctx.textAlign = 'center';
   ctx.fillText('chain magnetization m', (pad.l + w - pad.r) / 2, h - pad.b + 24);
-  legend(ctx, w, h, [['Metropolis', COLORS.metro], ['QeMCMC', COLORS.quantum]], 'right');
 }

@@ -1,22 +1,40 @@
 // 2D network on canvas. Node coordinates come from the scenario payload
 // (spring layout for the finance networks, the literal street grid for
-// traffic), so the picture matches the one the Python gallery draws. Edges are
-// weighted by the dependency/flow matrix A. Failure colors the node red and
-// emits an expanding pulse; nodes are click-pickable for the intervention lab,
-// and selected nodes get a bright outline.
+// traffic), so the picture matches the one the Python gallery draws.
 //
-// Node RADIUS encodes exact susceptibility rank when `importance` is supplied:
-// during replay there are no recorded per-step states to animate (the digests
+// The encoding is built to show ONE thing: where structure-only centrality and
+// the equilibrium answer disagree, because that disagreement is the entire
+// claim. Structure-only baselines are cheap, scale to huge networks, and are
+// what a practitioner would reach for first -- they are also wrong near a
+// tipping point.
+//
+//   fill colour  = exact susceptibility mu   (what you should actually protect)
+//   radius       = structural strength       (what centrality would tell you)
+//   outline      = tier                      (3 dash patterns; shades were
+//                                             indistinguishable at this size)
+//   red          = failure and cascade seeds, and nothing else
+//
+// So a LARGE DARK node is structurally central but not worth protecting, and a
+// SMALL BRIGHT node is the hidden amplifier. In s2 the truth-rank-12 node is
+// strength-rank 4; in s1 the truth-rank-1 node is strength-rank 12.
+//
+// During replay there are no recorded per-step states to animate (the digests
 // carry traces and histograms, not 20k x 4 configurations), so the map shows
-// the ground-truth answer the samplers are competing to recover. Live runs do
-// have states and animate normally.
+// ground truth. Live runs do have states and animate the failure colour.
 
-const HEALTHY = [74, 93, 110]; // #4A5D6E
 const FAILED = '#B9362D';
-const TIER_SHADE = ['#6A7D8E', '#5A6D7E', '#4A5D6E'];
+// Sequential ramp for mu: muted slate (ignorable) -> quantum cyan (protect).
+const RAMP_LO = [72, 86, 97];    // #485661 -- still legible against the canvas
+const RAMP_HI = [98, 182, 207];  // #62B6CF -- var(--quantum)
+const EDGE_FERRO = [122, 139, 153];  // #7A8B99 -- var(--structural)
+const EDGE_FRUSTRATED = '#F08A73';   // var(--metro)
+const TIER_DASH = [[], [5, 2], [1, 3]]; // solid / dashed / dotted
 
 export class Network2D {
-  constructor(canvas, { A, tiers, positions, tierOrder, importance, seeds = [], mark = {} }) {
+  constructor(canvas, {
+    A, J, tiers, positions, tierOrder, importance, structure,
+    seeds = [], mark = {},
+  }) {
     this.canvas = canvas;
     this.tiers = tiers;
     this.n = tiers.length;
@@ -29,32 +47,41 @@ export class Network2D {
     this._pulse = new Array(this.n).fill(0);
 
     this.tierOrder = tierOrder || [...new Set(tiers)];
-    this._shade = (i) => {
-      const t = Math.max(0, this.tierOrder.indexOf(tiers[i]));
-      const hex = TIER_SHADE[Math.min(t, TIER_SHADE.length - 1)];
-      const b = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
-      return HEALTHY.map((v, k) => Math.round(v + (b[k] - v) * 0.6)).join(',');
-    };
+    this._tierIdx = (i) => Math.max(0, this.tierOrder.indexOf(tiers[i]));
 
     // positions arrive normalised to the unit square; y is flipped so the
     // exported layout (y up) draws the same way on canvas (y down).
     this._nodeAt = positions.map(([x, y], i) => ({ bank: i, x, y: 1 - y }));
 
-    if (importance && importance.length === this.n) {
-      const lo = Math.min(...importance), hi = Math.max(...importance);
-      const span = hi - lo || 1;
-      this._weight = importance.map((v) => (v - lo) / span);
-    } else {
-      this._weight = new Array(this.n).fill(0.5);
-    }
+    // Rank percentile, not min-max. Both quantities are heavy-tailed: one or
+    // two nodes carry most of the mass, so a linear scale renders everything
+    // else as the same dark dot and the picture says nothing. Rank also IS the
+    // quantity under discussion -- every fidelity metric on this page is a
+    // rank correlation.
+    const byRank = (xs) => {
+      if (!xs || xs.length !== this.n) return new Array(this.n).fill(0.5);
+      const order = [...xs.keys()].sort((a, b) => xs[a] - xs[b]);
+      const out = new Array(this.n);
+      order.forEach((idx, pos) => { out[idx] = this.n > 1 ? pos / (this.n - 1) : 0.5; });
+      return out;
+    };
+    this._truth = byRank(importance);     // -> fill
+    this._structure = byRank(structure);  // -> radius
 
-    const maxA = Math.max(...A.flat().map(Math.abs), 1e-9);
+    // Edges come from the COUPLINGS, not the dependency matrix: the sign of
+    // J_ij is the physics (J < 0 wants agreement, J > 0 is frustration), and
+    // the frustrated edges are the whole point of the rival-alliance scenario.
+    const W = J || A;
+    const maxW = Math.max(...W.flat().map(Math.abs), 1e-9);
     this._edges = [];
     for (let i = 0; i < this.n; i++)
-      for (let j = 0; j < this.n; j++) {
-        if (i !== j && Math.abs(A[i][j]) > 0.02 * maxA)
-          this._edges.push({ i, j, w: Math.abs(A[i][j]) / maxA });
+      for (let j = i + 1; j < this.n; j++) {
+        const v = W[i][j];
+        if (Math.abs(v) > 0.02 * maxW) {
+          this._edges.push({ i, j, w: Math.abs(v) / maxW, frustrated: v > 0 });
+        }
       }
+    this.hasFrustration = this._edges.some((e) => e.frustrated);
 
     canvas.addEventListener('pointerdown', (ev) => this._pick(ev));
     this._reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -96,13 +123,25 @@ export class Network2D {
     ctx.clearRect(0, 0, W, H);
     const { xy } = this._geometry();
 
-    for (const { i, j, w } of this._edges) {
-      ctx.strokeStyle = `rgba(110,135,195,${0.07 + 0.35 * w})`;
-      ctx.lineWidth = 0.5 + 2 * w;
+    // Frustrated couplings are drawn last and dashed so a handful of them
+    // (s3 has 6 of 65) cannot be lost under the ferromagnetic majority.
+    const ordered = [...this._edges].sort((a, b) => a.frustrated - b.frustrated);
+    for (const { i, j, w, frustrated } of ordered) {
+      if (frustrated) {
+        ctx.strokeStyle = EDGE_FRUSTRATED;
+        ctx.globalAlpha = 0.5 + 0.5 * w;
+        ctx.setLineDash([4, 3]);
+        ctx.lineWidth = 1 + 2 * w;
+      } else {
+        ctx.strokeStyle = `rgba(${EDGE_FERRO.join(',')},${0.18 + 0.5 * w})`;
+        ctx.lineWidth = 0.5 + 2 * w;
+      }
       ctx.beginPath();
       ctx.moveTo(xy[i][0], xy[i][1]);
       ctx.lineTo(xy[j][0], xy[j][1]);
       ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     }
 
     for (let k = 0; k < this.n; k++) {
@@ -119,13 +158,25 @@ export class Network2D {
         ctx.globalAlpha = 1;
         this._pulse[k] = Math.max(0, this._pulse[k] - 0.03);
       }
-      const color = failed ? FAILED : `rgb(${this._shade(node.bank)})`;
-      const r = Math.max(1, (5.5 + 7 * this._weight[node.bank]) * (failed ? 1.15 : 1));
-      ctx.fillStyle = color;
+      const i = node.bank;
+      // radius = what structure says; fill = what equilibrium says.
+      const r = Math.max(1, (5 + 8 * this._structure[i]) * (failed ? 1.15 : 1));
+      ctx.fillStyle = failed ? FAILED : rampColor(this._truth[i]);
       ctx.beginPath();
       ctx.arc(x, y, r, 0, 2 * Math.PI);
       ctx.fill();
-      if (this.seeds.has(node.bank)) {
+
+      // tier as an outline dash pattern -- three fill shades at this node size
+      // were indistinguishable, so the channel was wasted.
+      ctx.strokeStyle = 'rgba(234,230,220,0.5)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash(TIER_DASH[Math.min(this._tierIdx(i), TIER_DASH.length - 1)]);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (this.seeds.has(i)) {
         ctx.strokeStyle = FAILED;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -146,10 +197,12 @@ export class Network2D {
         ctx.arc(x, y, r + 3.5, 0, 2 * Math.PI);
         ctx.stroke();
       }
-      ctx.fillStyle = '#171B20';
+      // Label contrast has to follow the fill, which now spans dark slate to
+      // bright cyan; a fixed dark label vanished on the low end of the ramp.
+      ctx.fillStyle = (failed || this._truth[i] > 0.45) ? '#171B20' : '#C9D1D6';
       ctx.font = 'bold 9px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(node.bank, x, y + 3);
+      ctx.fillText(i, x, y + 3);
     }
   }
 
@@ -164,4 +217,12 @@ export class Network2D {
     });
     if (best >= 0 && this.onNodeClick) this.onNodeClick(this._nodeAt[best].bank);
   }
+}
+
+// Two-stop sRGB ramp. Good enough for an ordinal read ("brighter = protect
+// this one") and it stays inside the page's existing slate/cyan palette.
+export function rampColor(t) {
+  const u = Math.min(1, Math.max(0, t));
+  const c = RAMP_LO.map((lo, k) => Math.round(lo + (RAMP_HI[k] - lo) * u));
+  return `rgb(${c.join(',')})`;
 }

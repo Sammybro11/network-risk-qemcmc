@@ -1,5 +1,5 @@
 import { Registry } from './registry.js';
-import { Network2D } from './ui/network2d.js';
+import { Network2D, rampColor } from './ui/network2d.js';
 import { drawTraces, drawRanking, drawRegret } from './ui/charts.js';
 import { drawFlipHist, drawBasinHist } from './ui/mechanism.js';
 import { BailoutPanel } from './ui/bailout.js';
@@ -266,6 +266,7 @@ class App {
         canvas.className = 'network';
         canvas.id = `viz-${viz.id}`;
         section.appendChild(canvas);
+        if (viz.legend) section.appendChild(this.buildNetworkLegend(viz.legend));
         workspace.appendChild(section);
         this.vizInstances.set('network', new Network2D(canvas, viz.data));
       } else if (viz.type === 'timeseries') {
@@ -318,11 +319,11 @@ class App {
             </label>
             <button id="bailout-clear" type="button">Clear</button>
             <span class="preset-label">Presets:</span>
-            <button class="preset" data-strategy="quantum-chi" type="button">QeMCMC &chi;</button>
-            <button class="preset" data-strategy="metro-chi" type="button">Metro &chi;</button>
-            <button class="preset" data-strategy="strength" type="button">Strength</button>
-            <button class="preset" data-strategy="eigenvector" type="button">Eigenvector</button>
-            <button class="preset" data-strategy="debtrank" type="button">DebtRank</button>
+            ${cfg.presets.map((p) => `
+              <button class="preset${p.degenerate ? ' degenerate' : ''}" data-strategy="${p.id}"
+                type="button"${p.degenerate
+                  ? ' title="This baseline is a constant on this instance, so it ranks nothing — it picks the lowest indices by tie order."'
+                  : ''}>${p.label}${p.degenerate ? ' ⚠' : ''}</button>`).join('')}
           </div>
           <div id="bank-picker" class="bank-picker" role="group" aria-label="${lex.Unit}s"></div>
           <div class="charts" style="padding-bottom: 0;">
@@ -350,6 +351,46 @@ class App {
         }
       }
     });
+  }
+
+  // Swatches are drawn with the same constants the canvas uses, so the legend
+  // cannot drift away from what is actually on screen.
+  buildNetworkLegend({ items, callout }) {
+    const wrap = document.createElement('div');
+    wrap.className = 'net-legend';
+
+    const swatch = (item) => {
+      if (item.kind === 'ramp') {
+        return `<span class="sw sw-ramp" style="background:linear-gradient(90deg,${rampColor(0)},${rampColor(1)})"></span>`;
+      }
+      if (item.kind === 'size') {
+        return `<span class="sw sw-size"><i style="width:6px;height:6px"></i><i style="width:13px;height:13px"></i></span>`;
+      }
+      if (item.kind === 'dash') {
+        return `<span class="sw sw-dash">${item.patterns
+          .map((_, k) => `<i class="d${k}"></i>`).join('')}</span>`;
+      }
+      if (item.kind === 'edge') {
+        return `<span class="sw sw-edge"><i class="ferro"></i>${item.frustrated ? '<i class="frus"></i>' : ''}</span>`;
+      }
+      if (item.kind === 'mark') return `<span class="sw sw-mark">Q</span>`;
+      return `<span class="sw sw-seed"></span>`;
+    };
+
+    wrap.innerHTML = `
+      <ul>
+        ${items.map((it) => `
+          <li>
+            ${swatch(it)}
+            <span class="leg-text">
+              <b>${it.kind === 'mark' ? 'Q marker' : it.label}</b>
+              <span>${it.note}</span>
+            </span>
+          </li>`).join('')}
+      </ul>
+      <p class="leg-callout">${callout}</p>
+    `;
+    return wrap;
   }
 
   renderMethodology() {
@@ -384,9 +425,21 @@ class App {
     $('btn-replay').addEventListener('click', () => this.replay());
     $('btn-live').addEventListener('click', () => this.runLive());
 
+    // Belt and braces against the resize loop the canvases used to drive:
+    // coalesce into one animation frame, and ignore notifications where the
+    // observed width did not actually change (heights move on their own as
+    // panels reflow, and reacting to that is what oscillated).
     if (!this.resizeObserver) {
-      this.resizeObserver = new ResizeObserver(() => {
-        if (!this.isLive && this.currentAdapter && this.currentAdapter.data) this.updateCharts();
+      let pending = false;
+      this.resizeObserver = new ResizeObserver((entries) => {
+        const w = Math.round(entries[0].contentRect.width);
+        if (w === this._lastWidth || pending) return;
+        this._lastWidth = w;
+        pending = true;
+        requestAnimationFrame(() => {
+          pending = false;
+          if (!this.isLive && this.currentAdapter && this.currentAdapter.data) this.updateCharts();
+        });
       });
       this.resizeObserver.observe($('module-workspace'));
     }

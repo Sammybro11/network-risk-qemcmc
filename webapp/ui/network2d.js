@@ -89,7 +89,7 @@ export class Network2D {
     for (let t = 0; t < 3; t++) {
       ctx.strokeStyle = '#232b3d';
       ctx.beginPath();
-      ctx.arc(cx, cy, R * RING_RADIUS[t], 0, 2 * Math.PI);
+      ctx.arc(cx, cy, Math.max(0, R * RING_RADIUS[t]), 0, 2 * Math.PI);
       ctx.stroke();
     }
     ctx.fillStyle = '#A8B0B5';

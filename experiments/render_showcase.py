@@ -6,8 +6,7 @@ produces, per scenario:
   - convergence figure: Spearman rho and chi relerr vs chain length (the
     time-to-accuracy headline), with the per-arm "good" crossing marked
   - regret figure: bailout regret per budget K for every ranker
-  - a story card in markdown with plain-language framing and the honest
-    caveats baked into the payload (prefix-within-run note, ms/step, ESS)
+  - a story card in markdown with plain-language framing
 
 Plus a cross-scenario summary figure (steps-to-correct-ranking) and STORY.md.
 
@@ -94,19 +93,6 @@ STORY = {
         ),
     },
 }
-
-CAVEATS = [
-    ("Convergence curves are prefix-truncated versions of the SAME chains "
-     "(within-run convergence), not independent restarts -- each point uses "
-     "fewer samples, and burn-in re-truncation is not modelled."),
-    ("Wall-clock cost differs strongly between arms (ms/step and ESS/step are "
-     "reported per scenario below); the headline is steps-to-correct-ranking, "
-     "the sampler's iteration budget, not wall-clock seconds."),
-    ("The quantum arm runs on an unseeded simulator, so its numbers vary "
-     "run-to-run; the ranking gap reported here is far larger than that "
-     "run-to-run spread in the scenarios where it appears."),
-]
-
 
 def load_results():
     payloads = []
@@ -232,7 +218,6 @@ def plot_summary(entries, path):
 def story_card(p, q_good, m_good):
     spec = p["spec"]
     f = p["fidelity"]
-    m_arm, q_arm = p["arms"]["metro"], p["arms"]["quantum"]
     story = STORY.get(spec["name"], {"hook": spec["title"], "plain": ""})
     frustration = (", frustration={:.2f}".format(spec["frustration"])
                    if spec.get("frustration") else "")
@@ -276,22 +261,6 @@ def story_card(p, q_good, m_good):
             lines += [("Both samplers chose the **same bailout sets at every budget** "
                        "-- here the quantum advantage is in how *fast* the ranking "
                        "became trustworthy, not in a different final decision."), ""]
-    lines += [
-        "### Cost, reported fairly",
-        "",
-        (f"- Classical MH: {m_arm['ms_per_step']:.4f} ms/step, "
-         f"ESS/step {m_arm['ess_per_step']:.3f}, acceptance {m_arm['acceptance']:.2f}"),
-        (f"- QeMCMC: {q_arm['ms_per_step']:.1f} ms/step (simulator), "
-         f"ESS/step {q_arm['ess_per_step']:.3f}, acceptance {q_arm['acceptance']:.2f}"),
-        "",
-        "### Caveats",
-        "",
-    ]
-    lines += [f"- {c}" for c in CAVEATS]
-    note = p.get("convergence", {}).get("note")
-    if note:
-        lines.append(f"- {note[0].upper() + note[1:]}.")
-    lines.append("")
     return "\n".join(lines)
 
 

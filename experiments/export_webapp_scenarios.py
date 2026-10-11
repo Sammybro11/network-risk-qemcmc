@@ -31,10 +31,22 @@ OUT_DIR = REPO / "webapp" / "data" / "scenarios"
 # The narrative lives with the qollab gallery; the webapp reuses it verbatim so
 # the two front-ends never tell different stories about the same run.
 sys.path.insert(0, str(REPO / "qollab_lab"))
-from py.gallery_text import CAVEATS, HOW_TO_READ, _STORIES  # noqa: E402
+from py.gallery_text import HOW_TO_READ, _STORIES  # noqa: E402
 from py.scenarios_data import load as load_digests  # noqa: E402
 
 GEN_ND = 4
+
+# gallery_text used to export these; they were dropped when the gallery copy was
+# tightened. The webapp still has to state them, because it reports the same
+# prefix-truncated ladder and the same simulated quantum arm.
+CAVEATS = [
+    "convergence ladders are prefix-truncated versions of the SAME chains "
+    "(within-run convergence), not independent restarts",
+    "wall-clock cost differs strongly between arms (ms/step reported); the "
+    "headline is steps-to-correct-ranking, the iteration budget",
+    "the recorded quantum arm ran on an unseeded simulator, so numbers vary "
+    "run-to-run; the reported ranking gaps are far larger than that spread",
+]
 
 
 def rmat(m, nd=GEN_ND):
@@ -89,17 +101,23 @@ def build_payload(name, digest):
     return payload
 
 
-def steps_to_rank(payload, threshold=0.9):
-    """Steps until each arm's intervention ranking matches the exact answer.
+def steps_to_rank(payload, rho_min=0.9, relerr_max=0.1):
+    """Steps until each arm is trustworthy: Spearman >= 0.9 AND chi relerr <= 0.1.
 
     This is the headline the landing page shows, because at the full budget
     both arms converge -- the defensible claim is the iteration budget, not
     final accuracy. None means "never, within the recorded run".
+
+    Both conditions are required, matching the definition in README.md. Rank
+    correlation alone is not enough and disagrees materially: on s1 the
+    classical arm first clears rho >= 0.9 at 8,000 steps while its chi is still
+    16% off, and only becomes trustworthy at 12,000.
     """
     curves = payload.get("convergence", {}).get("curves", {})
     out = {}
     for arm in ("quantum", "metro"):
-        hit = next((p for p in curves.get(arm, []) if p["mu_spearman"] >= threshold), None)
+        hit = next((p for p in curves.get(arm, [])
+                    if p["mu_spearman"] >= rho_min and p["chi_relerr"] <= relerr_max), None)
         out[arm] = hit["steps"] if hit else None
     return out
 

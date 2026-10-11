@@ -150,7 +150,8 @@ class App {
 
       const steps = (v) => (v ? `${v.toLocaleString()} steps` : `not within ${e.steps.toLocaleString()}`);
       const q = e.stepsToRank?.quantum, m = e.stepsToRank?.metro;
-      const gap = q && m ? `${(m / q).toFixed(1)}x` : '—';
+      const ratio = q && m ? m / q : null;
+      const gap = ratio ? (ratio > 1.05 ? `${ratio.toFixed(1)}x` : 'tie') : '—';
 
       card.innerHTML = `
         <div class="card-tags">
@@ -162,7 +163,7 @@ class App {
         <h3>${e.title}</h3>
         <p class="card-story">${e.story}</p>
         <div class="card-headline">
-          <div class="row"><span>Steps to a correct ranking</span><span></span></div>
+          <div class="row"><span>Steps to a trustworthy answer</span><span></span></div>
           <div class="row"><span class="q">QeMCMC</span><span class="q">${steps(q)}</span></div>
           <div class="row"><span class="m">Metropolis</span><span class="m">${steps(m)}</span></div>
           <div class="row"><span class="gap">Iteration-budget gap</span><span class="gap">${gap}</span></div>
@@ -172,9 +173,9 @@ class App {
       wrap.appendChild(card);
     }
     $('chooser-foot').textContent =
-      `Steps-to-correct-ranking is the first prefix of the recorded chains whose ranking ` +
-      `reaches Spearman >= 0.9 against exact truth. Prefixes of one run measure within-run ` +
-      `convergence, not independent restarts.`;
+      `Time to accuracy is the first prefix of the recorded chains to reach Spearman >= 0.9 ` +
+      `against exact truth AND chi relative error <= 0.1 — the same definition the README ` +
+      `uses. Prefixes of one run measure within-run convergence, not independent restarts.`;
   }
 
   renderSwitcher(adapters) {

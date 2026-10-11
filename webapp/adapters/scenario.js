@@ -428,21 +428,25 @@ export class ScenarioAdapter {
     };
   }
 
-  // "Steps until the ranking is right" from the recorded convergence ladder —
-  // the honest headline, since both arms converge given enough steps.
-  convergenceSummary(threshold = 0.9) {
+  // "Steps until the sampler is trustworthy" from the recorded convergence
+  // ladder -- the honest headline, since both arms converge given enough steps.
+  // Threshold is rho >= 0.9 AND chi relerr <= 0.1, the definition used in
+  // README.md; rank correlation alone clears earlier and would make the site
+  // quote different gaps than the repo does.
+  convergenceSummary(rhoMin = 0.9, relerrMax = 0.1) {
     const curves = this.data.convergence?.curves;
     if (!curves) return '';
     const firstGood = (arm) => {
-      const hit = (curves[arm] || []).find((p) => p.mu_spearman >= threshold);
+      const hit = (curves[arm] || [])
+        .find((p) => p.mu_spearman >= rhoMin && p.chi_relerr <= relerrMax);
       return hit ? hit.steps : null;
     };
     const q = firstGood('quantum'), m = firstGood('metro');
     if (!q && !m) return '';
     const fmtSteps = (s) => (s ? s.toLocaleString() + ' steps' : `never within ${this.spec.steps.toLocaleString()}`);
     const gap = q && m ? ` (${(m / q).toFixed(1)}x iteration-budget gap)` : '';
-    return `Time to a correct ranking (Spearman >= ${threshold}): QeMCMC ${fmtSteps(q)}, ` +
-      `Metropolis ${fmtSteps(m)}${gap}.`;
+    return `Time to accuracy (Spearman >= ${rhoMin} and χ relative error <= ${relerrMax}): ` +
+      `QeMCMC ${fmtSteps(q)}, Metropolis ${fmtSteps(m)}${gap}.`;
   }
 
   getMetadata() {

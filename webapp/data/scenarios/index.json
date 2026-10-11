@@ -12,7 +12,7 @@
   "verdict": "QeMCMC ranked the targets correctly at 4,000 steps; classical MH needed 12,000 -- a 3x iteration-budget gap. Both converge eventually, but under a fixed budget the wrong ranking means the wrong bailout.",
   "stepsToRank": {
    "quantum": 4000,
-   "metro": 8000
+   "metro": 12000
   },
   "fidelity": {
    "metro": {
@@ -37,8 +37,8 @@
   "story": "A mid-tier bank quietly amplifies every shock. The dangerous bank is not the biggest one: it sits in the periphery of the network and multiplies whatever hits it. Vulnerability that only shows up under stress is exactly what a frozen sampler misses.",
   "verdict": "Both samplers converge here, but the quantum arm's chi error stays roughly 1.4x lower and its rho reaches 0.986 vs 0.916 -- the amplifier ranks correctly sooner and more sharply.",
   "stepsToRank": {
-   "quantum": 8000,
-   "metro": 8000
+   "quantum": 12000,
+   "metro": 16000
   },
   "fidelity": {
    "metro": {
@@ -89,7 +89,7 @@
   "story": "A city grid at rush hour, one closure from gridlock. Closing the wrong street at the wrong hour doesn't just slow one block -- traffic reroutes and jams somewhere else. The worst street is only visible once you've seen both the free-flowing and the gridlocked regime.",
   "verdict": "QeMCMC ranked the widening targets correctly at 8,000 steps; classical MH needed the full 20,000 -- a 2.5x iteration-budget gap, and the only arm whose final ranking matches the exact answer exactly (rho = 1.0).",
   "stepsToRank": {
-   "quantum": 4000,
+   "quantum": 8000,
    "metro": 20000
   },
   "fidelity": {

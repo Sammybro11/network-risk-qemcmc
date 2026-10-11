@@ -39,7 +39,9 @@ def load():
     here = Path(__file__).resolve().parent
     if str(here) not in sys.path:
         sys.path.insert(0, str(here))
-    import scenarios_data  # sibling module, resolved via the sys.path insert above
+    from py import (
+        scenarios_data,  # type: ignore[attr-defined] # qollab bundles data modules it sees named here; loaded via the sys.path insert above
+    )
     return scenarios_data.load()
 
 

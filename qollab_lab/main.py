@@ -125,19 +125,7 @@ def print_tables(study, omega, budget):
         print(f"{name:>12} " + "  ".join(f"{c:<10s}" for c in cells))
 
 
-def main(
-    method: str = "finance",
-    size: int = 6,
-    lam: float = 6.0,
-    vuln: float = 0.0,
-    beta: float = 2.5,
-    omega: float = 2.0,
-    budget: int = 3,
-    steps: int = 500,
-    chains: int = 2,
-    burn_in: int = 100,
-    seed: int = 42,
-):
+def main(method: str = "finance", size: int = 6, lam: float = 6.0, vuln: float = 0.0, beta: float = 2.5, omega: float = 2.0, budget: int = 3, steps: int = 500, chains: int = 2, burn_in: int = 100, seed: int = 42):
     """Run the full method-quality protocol and print tables + figures.
 
     method: "finance" (size = number of banks) or "traffic" (size = grid side L).

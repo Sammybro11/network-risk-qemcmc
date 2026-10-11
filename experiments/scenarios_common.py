@@ -460,7 +460,7 @@ def run_scenario(spec, qe_kwargs=None):
                                             steps, chains, burn_in, race_mus, qe_kwargs)
     rand_table = random_baseline(J, h, beta, spec["omega"], apply_fn, m_of, budget)
 
-    return {
+    payload = {
         "spec": spec,
         "meta": meta,
         "instance": {  # full matrices so every result is recomputable offline
@@ -487,6 +487,8 @@ def run_scenario(spec, qe_kwargs=None):
             "optimal": opt,
         },
     }
+    # time-to-accuracy curves recomputed from the just-recorded traces
+    return attach_convergence_curves(payload)
 
 
 def serialize_trace(res):
@@ -501,6 +503,63 @@ def serialize_trace(res):
         "accepted": t["accepted"].tolist(),      # bool, per step
         "proposal_params": t["proposal_params"],  # (gamma, t, r) or None per step
     }
+
+
+def convergence_curve(story, fracs=(0.1, 0.2, 0.4, 0.6, 0.8, 1.0)):
+    """Accuracy-vs-steps ladder RECOMPUTED from the saved traces.
+
+    Each arm's recorded chains are truncated to a prefix of `frac * steps`
+    samples; chi/mu are recomputed on the prefix and scored against the exact
+    reference. One saved run therefore yields the full "how fast does each
+    sampler get there" curve with zero new sampling -- the time-to-accuracy
+    story for the website.
+
+    Honest caveat (also embedded in the payload): a prefix of one long chain
+    shows WITHIN-RUN convergence, not independent-restart convergence -- it
+    says what each sampler had achieved after t steps, not that metro could
+    never cross quantum later. S4 (n=9) demonstrates the difference: metro's
+    full run reached relerr 0.067 there.
+    """
+    exact = story.get("exact")
+    if not exact:
+        return None  # no ground truth -> nothing to score prefixes against
+    chi_exact = np.asarray(exact["chi"], float)
+    mu_exact = chi_exact.mean(axis=0)
+    norm_exact = np.linalg.norm(chi_exact)
+    steps = story["spec"]["steps"]
+
+    curves = {}
+    for arm in ("metro", "quantum"):
+        points = []
+        for frac in fracs:
+            L = max(1, round(frac * steps))
+            states = np.concatenate([
+                np.asarray(t["states"], dtype=float)[:L]
+                for t in story["arms"][arm]["traces"]
+            ])
+            chi = susceptibility(states, story["instance"]["beta"])
+            mu = chi.mean(axis=0)
+            points.append({
+                "steps": L,
+                "total_steps": L * len(story["arms"][arm]["traces"]),
+                "chi_relerr": float(np.linalg.norm(chi - chi_exact) / norm_exact),
+                "mu_spearman": spearman(mu, mu_exact),
+                "chi_norm": float(np.linalg.norm(chi)),
+            })
+        curves[arm] = points
+    return {
+        "curves": curves,
+        "note": "prefix-truncated chains: within-run convergence, not "
+                "independent-restart convergence",
+    }
+
+
+def attach_convergence_curves(story):
+    """Fill story['convergence'] in place (no-op when no exact truth)."""
+    curve = convergence_curve(story)
+    if curve is not None:
+        story["convergence"] = curve
+    return story
 
 
 def save_story(payload, fname):

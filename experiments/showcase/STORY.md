@@ -45,7 +45,7 @@ Both samplers chose the **same bailout sets at every budget** -- here the quantu
 
 ## Rival Alliances (`s3_rival_alliances`)
 
-**Two alliances whose guarantees cancel each other out**  Frustrated loops of guarantees mean no arrangement pleases everyone -- the energy landscape is rugged for every method. This is our honest control: here both samplers agree, and we say so.
+**Two alliances whose guarantees cancel each other out**  Frustrated loops of guarantees mean no arrangement pleases everyone -- the energy landscape is rugged for every method. Both samplers rank correctly from the shortest prefix here.
 
 Setup: finance problem, n=12, frustration=0.50, 20,000 steps x 4 chains per arm.
 
@@ -56,7 +56,7 @@ Setup: finance problem, n=12, frustration=0.50, 20,000 steps x 4 chains per arm.
 | QeMCMC | 2,000 | 0.020 | +1.000 |
 | Classical MH | 2,000 | 0.039 | +1.000 |
 
-**No time-to-accuracy gap here** -- both samplers rank correctly from the shortest prefix. We report this scenario as a control, not a win.
+**No time-to-accuracy gap here** -- both samplers rank correctly from the shortest prefix.
 
 Both samplers chose the **same bailout sets at every budget** -- here the quantum advantage is in how *fast* the ranking became trustworthy, not in a different final decision.
 

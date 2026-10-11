@@ -87,8 +87,6 @@ Ground truth is exact $2^n$ Boltzmann enumeration (chunked up to $n \le 22$), so
 
 Four named real-world scenarios, each a different story wrapped around the one honest mechanism (basin freezing). Both samplers get the **same iteration budget**; the question is who ranks the rescue targets correctly *first*.
 
-![Time-to-accuracy across all four scenarios](https://raw.githubusercontent.com/Sammybro11/network-risk-qemcmc/main/experiments/showcase/summary_time_to_accuracy.png)
-
 | Scenario | Story | QeMCMC correct from | Classical MH correct from | Gap |
 | :---- | :---- | :---- | :---- | :---- |
 | Tight Conglomerate Core (finance, $n{=}12$) | Core banks prop each other up; the system has two moods | **4,000** steps | 12,000 steps | **3.0×** |
@@ -96,17 +94,49 @@ Four named real-world scenarios, each a different story wrapped around the one h
 | Rival Alliances (finance, $n{=}12$) | Frustrated guarantees; rugged landscape | 2,000 steps | 2,000 steps | — (no gap) |
 | Rush-Hour Gridlock (traffic, $n{=}9$) | Closing the wrong street jams somewhere else | **8,000** steps | 20,000 steps | **2.5×** |
 
-And the traffic case tells the same story with an $n{=}9$ grid — QeMCMC sits at $\rho \approx +1.0$ from 4,000 steps while Metropolis is *negatively* correlated through 12,500:
+![Time-to-accuracy across all four scenarios](https://raw.githubusercontent.com/Sammybro11/network-risk-qemcmc/main/experiments/showcase/summary_time_to_accuracy.png)
 
-![Rush-Hour Gridlock: QeMCMC correct from 4k steps, Metropolis anti-correlated until 15k](https://raw.githubusercontent.com/Sammybro11/network-risk-qemcmc/main/experiments/showcase/s4_rush_hour_convergence.png)
+## The four scenarios in full
 
-Full-length fidelity where it matters most: S1 QeMCMC relerr **0.008** / $\rho$ **+0.958** vs Metropolis 0.018 / +0.972 — and on the frozen instance Metropolis measures $\chi$ with **negative** Spearman $\rho$, i.e. confidently the wrong ranking.
+Every scenario, its convergence figure, and what each one teaches:
+
+### 1. Tight Conglomerate Core (finance, $n{=}12$) — the biggest gap
+
+**Story:** six core banks guarantee each other's debt so tightly that the system has two stable moods — everything stands, or the whole core falls together. A short simulation that only explores one mood will confidently tell you the wrong bank to bail out.
+
+The convergence figure at the top of this card is this scenario: Metropolis ranks the rescue targets *backwards* ($\rho \approx -0.8$) at short chain lengths; QeMCMC is above the correctness threshold from 4,000 steps. QeMCMC correct from **4,000** steps; Metropolis needs 12,000 (**3.0×**). At full length QeMCMC's susceptibility matrix is nearly exact (relerr **0.008**, $\rho$ +0.958).
+
+### 2. Fragile Periphery, Hidden Amplifier (finance, $n{=}12$) — the subtle case
+
+**Story:** the dangerous bank is not the biggest one — it sits mid-network and multiplies whatever hits it. Vulnerability that only shows up under stress is exactly what a frozen sampler misses.
+
+![Hidden Amplifier convergence](https://raw.githubusercontent.com/Sammybro11/network-risk-qemcmc/main/experiments/showcase/s2_hidden_amplifier_convergence.png)
+
+QeMCMC correct from **12,000** steps; Metropolis needs 16,000 (1.3×). Metropolis's ranking even *degrades* between 12,000 and 16,000 steps ($\rho$ 0.965 → 0.916) — it never fully escapes its starting basin. Both samplers end up recommending the same rescue sets; the advantage here is how *fast* the ranking became trustworthy.
+
+### 3. Rival Alliances (finance, $n{=}12$) — the control
+
+**Story:** two alliances whose guarantees cancel each other out. Frustrated loops mean no arrangement pleases everyone — the energy landscape is rugged for every method, and here both samplers rank correctly from the shortest prefix.
+
+![Rival Alliances convergence](https://raw.githubusercontent.com/Sammybro11/network-risk-qemcmc/main/experiments/showcase/s3_rival_alliances_convergence.png)
+
+QeMCMC and Metropolis both correct from **2,000** steps — no time-to-accuracy gap. When the landscape is easy, the quantum machinery adds nothing and we say so.
+
+### 4. Rush-Hour Gridlock (traffic, $n{=}9$) — the generalization
+
+**Story:** a city grid at rush hour, one closure from gridlock. Closing the wrong street doesn't just slow one block — traffic reroutes and jams somewhere else. The worst street is only visible once you've seen both the free-flowing and the gridlocked regime.
+
+![Rush-Hour Gridlock convergence](https://raw.githubusercontent.com/Sammybro11/network-risk-qemcmc/main/experiments/showcase/s4_rush_hour_convergence.png)
+
+The strongest win of all: QeMCMC sits at $\rho \approx +1.0$ from **4,000** steps (correct by the time-to-accuracy criteria from 8,000) while Metropolis is *negatively* correlated through 12,500 — closing streets based on the classical ranking would jam the city faster. Full-length fidelity: QeMCMC relerr **0.048** / $\rho$ **+1.000** vs Metropolis 0.067 / +0.967.
+
+The same machinery, two different economies — finance and traffic — with no problem-specific changes to the sampler.
 
 ## What is in this project
 
 - **`src/risk_qemcmc/`** — the Python package: `problems/` (Ising instances + exact ground truth), `algorithms/` (MCMC driver, classical proposals, the quantum `QeProposal`), `compile/` (Qiskit Trotter circuit construction), `analysis/` (pure-numpy diagnostics: Geyer ESS, energy bias, susceptibility).
-- **`experiments/`** — the lab CLIs (`financial_contagion.py`, `traffic_congestion.py`), the six-scenario showcase protocol (`scen_s*.py` + `scenarios_common.py`), preflight gates that lock scenario parameters *before* long runs, and the renderer that turns result JSONs into figures + story markdown.
-- **`qollab_lab/`** — this entry. One Run button, two parts: **Part 1** renders the full recorded showcase gallery instantly (network maps, basin histograms, chain traces, flip-size histograms, convergence ladders, ranking bars, regret curves for static *and* sequential policies, cross-scenario summary); **Part 2** rebuilds the Rush-Hour instance and re-runs it **live** on the IonQ simulator chosen in the Select QPU dialog — exact truth by $2^9$ enumeration, then a Metropolis vs QeMCMC race, then the widening intervention study. Default 8,000 steps ≈ the recorded QeMCMC time-to-accuracy (~80 s), so you watch the quantum ranking land correct while classical MH is still lost.
+- **`experiments/`** — the lab CLIs (`financial_contagion.py`, `traffic_congestion.py`), the showcase protocol (`scen_s*.py` + `scenarios_common.py`), preflight gates that lock scenario parameters *before* long runs, and the renderer that turns result JSONs into figures + story markdown.
+- **`qollab_lab/`** — this entry. One Run button, two parts: **Part 1** renders the full recorded showcase gallery instantly (network maps, basin histograms, chain traces, flip-size histograms, convergence ladders, ranking bars, cross-scenario summary); **Part 2** rebuilds the Rush-Hour instance and re-runs it **live** on the IonQ simulator chosen in the Select QPU dialog — exact truth by $2^9$ enumeration, then a Metropolis vs QeMCMC race, then the widening intervention study. Default 8,000 steps ≈ the recorded QeMCMC time-to-accuracy (~80 s), so you watch the quantum ranking land correct while classical MH is still lost.
 - **Webapp** — a 100 % client-side dashboard ("Contagion Atlas") with two modules: Financial Contagion & Systemic Risk (interbank topology, sampler race, ranking fidelity, an interactive bailout laboratory scored against exact re-enumeration) and Max-Cut Graph Optimization (proving the platform is problem-agnostic). Runs live in your browser with zero backend: <https://network-risk-qemcmc.vercel.app>.
 - **Tests** — `uv run pytest` checks diagnostics (FFT autocorrelation, ESS sanity, sampler-$\chi$ vs exact enumeration, enumeration barrier).
 

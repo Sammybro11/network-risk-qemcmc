@@ -62,8 +62,7 @@ STORY = {
         "plain": (
             "Frustrated loops of guarantees mean no arrangement pleases "
             "everyone -- the energy landscape is rugged for every method. "
-            "This is our honest control: here both samplers agree, and we "
-            "say so."
+            "Both samplers rank correctly from the shortest prefix here."
         ),
     },
     "s4_rush_hour": {
@@ -156,6 +155,7 @@ def plot_convergence(p, path):
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return q_good, m_good
+
 
 
 def plot_regret(p, path):
@@ -251,8 +251,7 @@ def story_card(p, q_good, m_good):
         ]
     elif q_good == m_good:
         lines += [("**No time-to-accuracy gap here** -- both samplers rank correctly "
-                   "from the shortest prefix. We report this scenario as a control, "
-                   "not a win."), ""]
+                   "from the shortest prefix."), ""]
     table = p["intervention"]["static_table"]
     if "metro" in table and "quantum" in table:
         same = all(table["metro"][k]["set"] == table["quantum"][k]["set"]
